@@ -59,7 +59,9 @@ export function MesocycleEditorPage() {
     updateMacrocycle,
     createMesocycle,
     createMicrocycle,
+    updateMicrocycle,
     createTrainingDay,
+    updateTrainingDay,
     createDayExercise,
     updateDayExercise,
     deleteDayExercise,
@@ -630,6 +632,75 @@ export function MesocycleEditorPage() {
     }
   };
 
+  const handleEmbeddedMicrocycleUpdate = async (microcycleId: string, name: string) => {
+    if (!currentMacrocycle) return;
+
+    // Find mesocycleId for this microcycle
+    let foundMesocycleId: string | null = null;
+    let foundMicrocycle: Microcycle | null = null;
+    for (const [mesocycleId, mcs] of Object.entries(microcycles)) {
+      const mc = mcs.find(mc => mc.id === microcycleId);
+      if (mc) {
+        foundMesocycleId = mesocycleId;
+        foundMicrocycle = mc;
+        break;
+      }
+    }
+    if (!foundMesocycleId || !foundMicrocycle) return;
+
+    try {
+      await updateMicrocycle(currentMacrocycle.id, foundMesocycleId, microcycleId, {
+        name,
+        week_number: foundMicrocycle.week_number,
+        intensity_level: foundMicrocycle.intensity_level,
+        start_date: foundMicrocycle.start_date,
+        end_date: foundMicrocycle.end_date,
+        notes: foundMicrocycle.notes || undefined
+      });
+      toast.success('Microcycle name updated');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update microcycle name');
+    }
+  };
+
+  const handleEmbeddedTrainingDayUpdateName = async (microcycleId: string, dayId: string, name: string) => {
+    if (!currentMacrocycle) return;
+
+    // Find mesocycleId for this microcycle
+    let foundMesocycleId: string | null = null;
+    for (const [mesocycleId, mcs] of Object.entries(microcycles)) {
+      if (mcs.some(mc => mc.id === microcycleId)) {
+        foundMesocycleId = mesocycleId;
+        break;
+      }
+    }
+    if (!foundMesocycleId) return;
+
+    // Find current day data to preserve other fields
+    const days = trainingDays[microcycleId] || [];
+    const currentDay = days.find(d => d.id === dayId);
+    if (!currentDay) return;
+
+    try {
+      await updateTrainingDay(
+        currentMacrocycle.id,
+        foundMesocycleId,
+        microcycleId,
+        dayId,
+        {
+          name,
+          day_number: currentDay.day_number,
+          date: undefined, // Don't update date when changing name to avoid validation errors
+          focus: currentDay.focus || undefined,
+          notes: currentDay.notes || undefined
+        }
+      );
+      toast.success('Day name updated');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update day name');
+    }
+  };
+
   // Get the currently selected microcycle for Kanban board
   const getKanbanMicrocycle = (): Microcycle | null => {
     if (!kanbanContext) return null;
@@ -847,6 +918,8 @@ export function MesocycleEditorPage() {
                         onAddDay={(microcycleId) => openAddDay(mesocycle.id, microcycleId)}
                         onAddExercise={(microcycleId, dayId) => openAddExercise(mesocycle.id, microcycleId, dayId)}
                         // Embedded Kanban handlers
+                        onKanbanUpdateMicrocycle={handleEmbeddedMicrocycleUpdate}
+                        onKanbanUpdateDayName={handleEmbeddedTrainingDayUpdateName}
                         onKanbanEditDay={handleEmbeddedKanbanEditDay}
                         onKanbanDeleteDay={handleEmbeddedKanbanDeleteDay}
                         onKanbanCreateDayExercise={handleEmbeddedKanbanCreateDayExercise}

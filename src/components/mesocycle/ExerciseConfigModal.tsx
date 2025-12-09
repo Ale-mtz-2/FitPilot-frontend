@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
@@ -115,6 +115,9 @@ export function ExerciseConfigModal({
   const { t } = useTranslation(['training', 'exercises']);
   const [config, setConfig] = useState<UnifiedConfig>(DEFAULT_UNIFIED_CONFIG);
 
+  // Track if we've initialized the modal to prevent unwanted resets
+  const hasInitialized = useRef(false);
+
   // Determinar el tipo de configuración basado en el ejercicio
   const exerciseClass = exercise?.exercise_class || 'strength';
   const cardioSubclass = exercise?.cardio_subclass;
@@ -122,9 +125,39 @@ export function ExerciseConfigModal({
   const isHiit = isCardio && cardioSubclass === 'hiit';
   const isSteadyState = isCardio && (cardioSubclass === 'liss' || cardioSubclass === 'miss');
 
-  // Initialize form with dayExercise data when it changes
+  // Reset initialization flag when modal opens/closes
   useEffect(() => {
+    if (isOpen) {
+      hasInitialized.current = false;
+      console.log('[ExerciseConfigModal] Modal opened, reset initialization flag');
+    }
+  }, [isOpen]);
+
+  // Initialize form with dayExercise data when it changes
+  // Only initialize once when modal opens to prevent overwriting user changes
+  useEffect(() => {
+    console.log('[ExerciseConfigModal] useEffect triggered', {
+      isOpen,
+      hasInitialized: hasInitialized.current,
+      dayExerciseId: dayExercise?.id,
+      dayExerciseDuration: dayExercise?.duration_seconds,
+      currentConfigDuration: config.duration_seconds,
+      isHiit,
+      isSteadyState,
+      cardioSubclass,
+    });
+
+    // Only initialize if modal is open and we haven't initialized yet
+    if (!isOpen || hasInitialized.current) {
+      console.log('[ExerciseConfigModal] Skipping initialization - modal closed or already initialized');
+      return;
+    }
+
     if (dayExercise) {
+      console.log('[ExerciseConfigModal] Initializing with existing dayExercise', {
+        id: dayExercise.id,
+        duration_seconds: dayExercise.duration_seconds,
+      });
       setConfig({
         // Strength fields
         sets: dayExercise.sets || 3,
@@ -150,6 +183,11 @@ export function ExerciseConfigModal({
       });
     } else {
       // Set defaults based on exercise type
+      console.log('[ExerciseConfigModal] Initializing with defaults', {
+        isHiit,
+        isSteadyState,
+        cardioSubclass,
+      });
       if (isHiit) {
         setConfig({
           ...DEFAULT_UNIFIED_CONFIG,
@@ -160,9 +198,11 @@ export function ExerciseConfigModal({
           interval_rest_seconds: 30,
         });
       } else if (isSteadyState) {
+        const defaultDuration = cardioSubclass === 'liss' ? 2400 : 1800;
+        console.log('[ExerciseConfigModal] Setting default steady-state duration:', defaultDuration);
         setConfig({
           ...DEFAULT_UNIFIED_CONFIG,
-          duration_seconds: cardioSubclass === 'liss' ? 2400 : 1800, // 40min LISS, 30min MISS
+          duration_seconds: defaultDuration, // 40min LISS, 30min MISS
           intensity_zone: cardioSubclass === 'liss' ? 2 : 3,
         });
       } else {
@@ -172,9 +212,17 @@ export function ExerciseConfigModal({
         });
       }
     }
-  }, [dayExercise, isHiit, isSteadyState, cardioSubclass, initialPhase]);
+
+    hasInitialized.current = true;
+    console.log('[ExerciseConfigModal] Initialization complete');
+  }, [isOpen, dayExercise, isHiit, isSteadyState, cardioSubclass, initialPhase]);
 
   const handleSave = () => {
+    console.log('[ExerciseConfigModal] Saving config', {
+      duration_seconds: config.duration_seconds,
+      duration_minutes: Math.floor(config.duration_seconds / 60),
+      full_config: config,
+    });
     onSave(config);
     onClose();
   };
@@ -419,11 +467,14 @@ export function ExerciseConfigModal({
                     </div>
                     {/* Quick duration buttons */}
                     <div className="flex gap-2 mt-2">
-                      {[20, 30, 45, 60].map((mins) => (
+                      {[15, 20, 30, 45, 60].map((mins) => (
                         <button
                           key={mins}
                           type="button"
-                          onClick={() => setConfig({ ...config, duration_seconds: mins * 60 })}
+                          onClick={() => {
+                            console.log('[ExerciseConfigModal] Quick duration button clicked:', mins, 'minutes');
+                            setConfig({ ...config, duration_seconds: mins * 60 });
+                          }}
                           className={`px-3 py-1 text-xs rounded-full transition-colors ${config.duration_seconds === mins * 60
                             ? 'bg-orange-500 text-white'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

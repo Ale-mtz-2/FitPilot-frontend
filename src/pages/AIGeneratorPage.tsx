@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-hot-toast';
@@ -59,31 +59,57 @@ export const AIGeneratorPage: React.FC = () => {
     selectedClientId,
     selectedClientName,
     templateName,
-    interviewValidation,
-    isGenerating,
-    generatedWorkout,
-    error,
-    setCreationMode,
-    setSelectedClient,
-    setTemplateName,
-    setInterviewValidation,
-    loadInterviewData,
+  interviewValidation,
+  isGenerating,
+  generatedWorkout,
+  error,
+  config,
+  setCreationMode,
+  setSelectedClient,
+  setTemplateName,
+  setInterviewValidation,
+  loadInterviewData,
     generateWorkout,
     testGenerateWorkout,
-    saveWorkout,
-    reset,
-    clearError,
-  } = useAIStore();
+  saveWorkout,
+  reset,
+  clearError,
+  loadConfig,
+} = useAIStore();
 
   const [pageStep, setPageStep] = useState<PageStep>('mode-selection');
   const [localTemplateName, setLocalTemplateName] = useState('');
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [isInitializing, setIsInitializing] = useState(false);
 
-  // Calculate which steps to show when there are missing fields
-  const stepsToShow = missingFields.length > 0
-    ? [...new Set(missingFields.map(field => FIELD_TO_STEP_MAP[field]).filter(step => step !== undefined))].sort()
-    : undefined;
+  // Calculate which steps to show when there are missing fields, leveraging backend config labels
+  const stepsToShow = useMemo(() => {
+    if (missingFields.length === 0) return undefined;
+
+    const indices = new Set<number>();
+
+    if (config?.steps?.length) {
+      missingFields.forEach((field) => {
+        const stepIndex = config.steps.findIndex((step) =>
+          step.fields?.some((f) => f.label === field || f.name === field)
+        );
+        if (stepIndex >= 0) {
+          indices.add(stepIndex);
+        }
+      });
+    }
+
+    // Fallback mapping for legacy/translated labels
+    missingFields.forEach((field) => {
+      const mapped = FIELD_TO_STEP_MAP[field];
+      if (mapped !== undefined) {
+        indices.add(mapped);
+      }
+    });
+
+    const result = Array.from(indices).filter((step) => step !== undefined);
+    return result.length ? result.sort((a, b) => a - b) : undefined;
+  }, [missingFields, config]);
 
   // Initialize based on URL params
   useEffect(() => {
@@ -125,6 +151,15 @@ export const AIGeneratorPage: React.FC = () => {
     initializeFromUrl();
   }, [clientIdFromUrl]);
 
+  // Load questionnaire config once to align steps with backend
+  useEffect(() => {
+    if (!config) {
+      loadConfig().catch(() => {
+        toast.error(t('ai:errors.configLoadFailed', { defaultValue: 'No pudimos cargar el cuestionario. Intenta de nuevo.' }));
+      });
+    }
+  }, [config, loadConfig, t]);
+
   // Handle errors
   useEffect(() => {
     if (error) {
@@ -145,6 +180,11 @@ export const AIGeneratorPage: React.FC = () => {
     const autoSaveAndRedirect = async () => {
       if (!isGenerating && generatedWorkout?.macrocycle && pageStep === 'generating') {
         try {
+          if (generatedWorkout.warnings?.length) {
+            generatedWorkout.warnings.slice(0, 3).forEach((warning) => {
+              toast(warning, { icon: '⚠️' });
+            });
+          }
           const macrocycleId = await saveWorkout();
           toast.success(t('ai:messages.programSaved'));
           navigate(`/mesocycles/${macrocycleId}`);
@@ -400,6 +440,7 @@ export const AIGeneratorPage: React.FC = () => {
               mode="template"
               onComplete={handleQuestionnaireComplete}
               submitButtonText={t('ai:wizard.generateProgram')}
+              config={config || undefined}
               stepsToShow={stepsToShow}
             />
             {/* Boton de Test - genera sin usar API de Claude */}

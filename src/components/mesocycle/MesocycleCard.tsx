@@ -38,6 +38,8 @@ interface MesocycleCardProps {
   onKanbanDeleteDayExercise?: (microcycleId: string, dayExerciseId: string) => Promise<void>;
   onKanbanReorderExercises?: (dayId: string, exerciseIds: string[]) => Promise<void>;
   onKanbanMoveExercise?: (exerciseId: string, fromDayId: string, toDayId: string, newIndex: number) => Promise<void>;
+  onKanbanUpdateMicrocycle?: (microcycleId: string, name: string) => Promise<void>;
+  onKanbanUpdateDayName?: (microcycleId: string, dayId: string, name: string) => Promise<void>;
 }
 
 export function MesocycleCard({
@@ -59,6 +61,8 @@ export function MesocycleCard({
   onKanbanDeleteDayExercise,
   onKanbanReorderExercises,
   onKanbanMoveExercise,
+  onKanbanUpdateMicrocycle,
+  onKanbanUpdateDayName,
 }: MesocycleCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -159,57 +163,57 @@ export function MesocycleCard({
       <Card padding="none" className="relative rounded-2xl border-l-4 border-emerald-500 shadow-lg shadow-emerald-500/10 hover:shadow-xl hover:shadow-emerald-500/15 transition-all duration-300 overflow-hidden">
         {/* Header con degradado */}
         <div className="p-4 bg-gradient-to-r from-emerald-200 via-emerald-100/60 to-emerald-50/30 backdrop-blur-sm border-b border-emerald-300/50 hover:from-emerald-300/90 hover:via-emerald-200/60 hover:to-emerald-100/40 transition-all duration-300 cursor-pointer rounded-tr-2xl">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsExpanded(!isExpanded)}
-              >
-                <motion.div
-                  animate={{ rotate: isExpanded ? 180 : 0 }}
-                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsExpanded(!isExpanded)}
                 >
-                  <ChevronDownIcon className="h-5 w-5" />
-                </motion.div>
-              </Button>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Block {mesocycle.block_number}: {mesocycle.name}
-                  </h3>
-                  {mesocycle.focus && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getFocusColor(mesocycle.focus)}`}>
-                      {mesocycle.focus}
-                    </span>
-                  )}
+                  <motion.div
+                    animate={{ rotate: isExpanded ? 180 : 0 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  >
+                    <ChevronDownIcon className="h-5 w-5" />
+                  </motion.div>
+                </Button>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Block {mesocycle.block_number}: {mesocycle.name}
+                    </h3>
+                    {mesocycle.focus && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getFocusColor(mesocycle.focus)}`}>
+                        {mesocycle.focus}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {format(new Date(mesocycle.start_date), 'MMM d')} -{' '}
+                    {format(new Date(mesocycle.end_date), 'MMM d, yyyy')} •{' '}
+                    {microcycles.length} {microcycles.length === 1 ? 'week' : 'weeks'}
+                  </p>
                 </div>
-                <p className="text-sm text-gray-600">
-                  {format(new Date(mesocycle.start_date), 'MMM d')} -{' '}
-                  {format(new Date(mesocycle.end_date), 'MMM d, yyyy')} •{' '}
-                  {microcycles.length} {microcycles.length === 1 ? 'week' : 'weeks'}
-                </p>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={onEdit}>
+                <PencilIcon className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleDelete}>
+                <TrashIcon className="h-4 w-4 text-red-600" />
+              </Button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onEdit}>
-              <PencilIcon className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleDelete}>
-              <TrashIcon className="h-4 w-4 text-red-600" />
-            </Button>
-          </div>
+          {mesocycle.description && (
+            <p className="mt-2 text-sm text-gray-600 ml-12">{mesocycle.description}</p>
+          )}
         </div>
 
-        {mesocycle.description && (
-          <p className="mt-2 text-sm text-gray-600 ml-12">{mesocycle.description}</p>
-        )}
-      </div>
-
-    </Card>
+      </Card>
 
       {/* Fullscreen Dialog */}
       <Transition show={isExpanded} as={Fragment}>
@@ -380,6 +384,8 @@ export function MesocycleCard({
                           }
                           onReorderExercises={onKanbanReorderExercises}
                           onMoveExercise={onKanbanMoveExercise}
+                          onUpdateMicrocycle={(name) => onKanbanUpdateMicrocycle?.(activeMicrocycle.id, name) ?? Promise.resolve()}
+                          onUpdateDayName={(dayId, name) => onKanbanUpdateDayName?.(activeMicrocycle.id, dayId, name) ?? Promise.resolve()}
                           hideHeader
                           viewMode={viewMode}
                           onViewModeChange={setViewMode}

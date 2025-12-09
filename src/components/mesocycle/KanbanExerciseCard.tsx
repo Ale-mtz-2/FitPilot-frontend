@@ -77,6 +77,21 @@ export function KanbanExerciseCard({
   };
 
   const formatConfig = () => {
+    // Check if this is a cardio exercise
+    if (exerciseData?.exercise_class === 'cardio') {
+      // Display duration for cardio
+      if (dayExercise.duration_seconds) {
+        const minutes = Math.floor(dayExercise.duration_seconds / 60);
+        const seconds = dayExercise.duration_seconds % 60;
+        if (minutes > 0) {
+          return seconds > 0 ? `${minutes}m${seconds}s` : `${minutes}min`;
+        }
+        return `${seconds}s`;
+      }
+      return ''; // No config to display
+    }
+
+    // Original logic for strength exercises
     const parts: string[] = [];
     if (dayExercise.sets) parts.push(`${dayExercise.sets}x`);
     if (dayExercise.reps_min && dayExercise.reps_max) {
@@ -178,6 +193,16 @@ export function KanbanExerciseCard({
             <span className={`inline-block w-2 h-2 rounded-full bg-gradient-to-r ${muscleStyle.gradient} shadow-sm`} />
             <span className="text-[10px] text-gray-500 truncate capitalize">
               {(() => {
+                // For cardio, always show exercise class (never muscle group)
+                if (exerciseData?.exercise_class === 'cardio') {
+                  const subclass = exerciseData?.cardio_subclass;
+                  const label = subclass || 'cardio';
+                  return t(`exercises:exerciseClasses.${label}`, {
+                    defaultValue: label.replace('_', ' ')
+                  });
+                }
+
+                // For strength exercises, show muscle or exercise class
                 const labelInfo = getExerciseLabel(exerciseData);
                 return labelInfo.isMuscle
                   ? t(`exercises:muscleGroups.${labelInfo.label}`, { defaultValue: labelInfo.label.replace('_', ' ') })

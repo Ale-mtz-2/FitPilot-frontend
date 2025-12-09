@@ -293,11 +293,12 @@ export function DayColumn({
           </div>
           <div className="flex items-center gap-0.5">
             <motion.button
-              onClick={onEditDay}
+              onClick={() => setIsEditingName(true)}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
               className="p-1.5 text-gray-400 hover:text-primary-600 rounded-lg
                          hover:bg-primary-50 transition-colors duration-200"
+              title={t('trainingDay.clickToEdit')}
             >
               <PencilIcon className="h-3.5 w-3.5" />
             </motion.button>
@@ -343,11 +344,10 @@ export function DayColumn({
           <SortableContext id={`warmup-${trainingDay.id}`} items={warmupExerciseIds} strategy={verticalListSortingStrategy}>
             <div
               ref={warmupDroppable.setNodeRef}
-              className={`min-h-[80px] rounded-xl transition-colors duration-200 ${
-                isWarmupDraggedOver || warmupDroppable.isOver
+              className={`min-h-[80px] rounded-xl transition-colors duration-200 ${isWarmupDraggedOver || warmupDroppable.isOver
                   ? 'bg-emerald-50/50 ring-2 ring-emerald-300'
                   : warmupExercises.length === 0 ? 'bg-emerald-50/30 border border-dashed border-emerald-200/50' : ''
-              }`}
+                }`}
             >
               <AnimatePresence mode="popLayout">
                 <div className="space-y-2">
@@ -430,11 +430,10 @@ export function DayColumn({
           <SortableContext id={`main-${trainingDay.id}`} items={mainExerciseIds} strategy={verticalListSortingStrategy}>
             <div
               ref={mainDroppable.setNodeRef}
-              className={`min-h-[100px] rounded-xl transition-colors duration-200 ${
-                isMainDraggedOver || mainDroppable.isOver
+              className={`min-h-[100px] rounded-xl transition-colors duration-200 ${isMainDraggedOver || mainDroppable.isOver
                   ? 'bg-blue-50/50 ring-2 ring-blue-300'
                   : mainExercises.length === 0 ? 'bg-blue-50/30 border border-dashed border-blue-200/50' : ''
-              }`}
+                }`}
             >
               <AnimatePresence mode="popLayout">
                 <div className="space-y-2">
@@ -517,11 +516,10 @@ export function DayColumn({
           <SortableContext id={`cooldown-${trainingDay.id}`} items={cooldownExerciseIds} strategy={verticalListSortingStrategy}>
             <div
               ref={cooldownDroppable.setNodeRef}
-              className={`min-h-[80px] rounded-xl transition-colors duration-200 ${
-                isCooldownDraggedOver || cooldownDroppable.isOver
+              className={`min-h-[80px] rounded-xl transition-colors duration-200 ${isCooldownDraggedOver || cooldownDroppable.isOver
                   ? 'bg-amber-50/50 ring-2 ring-amber-300'
                   : cooldownExercises.length === 0 ? 'bg-amber-50/30 border border-dashed border-amber-200/50' : ''
-              }`}
+                }`}
             >
               <AnimatePresence mode="popLayout">
                 <div className="space-y-2">

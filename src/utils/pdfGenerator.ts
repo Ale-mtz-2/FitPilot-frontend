@@ -150,6 +150,54 @@ const loadImageAsBase64 = async (url: string): Promise<string | null> => {
     }
 };
 
+const TIME_BASED_EXERCISE_KEYWORDS = [
+    'cuerda', 'rope',
+    'treadmill', 'caminadora',
+    'run', 'running', 'jog',
+    'bike', 'bici', 'cycle',
+    'row', 'ski erg',
+    'plank', 'plancha',
+    'airdyne', 'assault'
+];
+
+const formatDuration = (seconds: number): string => {
+    if (!seconds) return '-';
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return remainder === 0 ? `${minutes}min` : `${minutes}:${String(remainder).padStart(2, '0')}min`;
+};
+
+const getRepsDisplay = (dayEx: DayExercise, exercise?: Exercise | null): string => {
+    const exerciseName = (exercise?.name_es || exercise?.name_en || '').toLowerCase();
+    const isCardioClass = exercise?.exercise_class === 'cardio' || exercise?.exercise_class === 'conditioning';
+    const isTimeBased =
+        isCardioClass ||
+        !!dayEx.duration_seconds ||
+        !!(dayEx.intervals && dayEx.work_seconds) ||
+        TIME_BASED_EXERCISE_KEYWORDS.some((kw) => exerciseName.includes(kw));
+
+    if (isTimeBased) {
+        if (dayEx.intervals && dayEx.work_seconds) {
+            return `${dayEx.intervals}x${dayEx.work_seconds}s`;
+        }
+        if (dayEx.duration_seconds) {
+            return formatDuration(dayEx.duration_seconds);
+        }
+        return '-';
+    }
+
+    // Strength / rep-based
+    if (dayEx.reps_min != null && dayEx.reps_max != null) {
+        return dayEx.reps_min === dayEx.reps_max
+            ? `${dayEx.reps_min}`
+            : `${dayEx.reps_min}-${dayEx.reps_max}`;
+    }
+    if (dayEx.reps_min != null) return `${dayEx.reps_min}`;
+    if (dayEx.reps_max != null) return `${dayEx.reps_max}`;
+    return '-';
+};
+
 export const generateMicrocyclePDF = async (
     microcycle: Microcycle,
     trainingDays: TrainingDay[],
@@ -319,7 +367,8 @@ export const generateMicrocyclePDF = async (
             doc.setTextColor(colors.gray[0], colors.gray[1], colors.gray[2]);
             doc.text(t('training:pdf.restDay'), 18, yPos);
             yPos += 20;
-            return;
+            // Continue to next day so we still render/save the PDF
+            continue;
         }
 
         const dayExercises = day.exercises || [];
@@ -329,7 +378,8 @@ export const generateMicrocyclePDF = async (
             doc.setTextColor(colors.gray[0], colors.gray[1], colors.gray[2]);
             doc.text(t('training:pdf.noExercises'), 18, yPos);
             yPos += 20;
-            return;
+            // Skip empty day but keep generating the rest of the document
+            continue;
         }
 
         // Sort exercises by order
@@ -380,6 +430,7 @@ export const generateMicrocyclePDF = async (
             const tableData = exercisesList.map((dayEx, index) => {
                 const exercise = dayEx.exercise || exercises.find(e => e.id === dayEx.exercise_id);
                 const exerciseName = getExerciseName(exercise) || t('training:pdf.unknownExercise', { defaultValue: 'Ejercicio desconocido' });
+                const repsCell = getRepsDisplay(dayEx, exercise);
 
                 let intensity = '';
                 if (dayEx.effort_type === 'RIR') intensity = `RIR ${dayEx.effort_value}`;
@@ -407,7 +458,7 @@ export const generateMicrocyclePDF = async (
                         exerciseName,
                         setType,
                         `${dayEx.sets}`,
-                        `${dayEx.reps_min}-${dayEx.reps_max}`,
+                        repsCell,
                         intensity || '-',
                         `${dayEx.rest_seconds}s`,
                         dayEx.tempo || '-',
@@ -425,6 +476,30 @@ export const generateMicrocyclePDF = async (
                 }
             }
 
+            // Calculate column widths to fit the page
+            const availableWidth = pageWidth - 28; // Page width minus margins (14 left + 14 right)
+            const fixedColumnsWidth = 12 + 30 + 12 + 10 + 12 + 15 + 10 + 12; // Sum of fixed column widths
+            const remainingWidth = availableWidth - fixedColumnsWidth;
+            // Distribute remaining width evenly so the table never exceeds the page
+            const logColumnWidth = logHeaders.length > 0 ? remainingWidth / logHeaders.length : 0;
+
+            // Build column styles dynamically
+            const columnStyles: any = {
+                0: { cellWidth: 12, halign: 'center' }, // Thumbnail
+                1: { cellWidth: 30, halign: 'left' }, // Exercise name (reduced from 32)
+                2: { cellWidth: 12, halign: 'center' }, // Type (reduced from 14)
+                3: { cellWidth: 10, halign: 'center' }, // Sets (reduced from 12)
+                4: { cellWidth: 12, halign: 'center' }, // Reps
+                5: { cellWidth: 15, halign: 'center' }, // Intensity (reduced from 18)
+                6: { cellWidth: 10, halign: 'center' }, // Rest (reduced from 12)
+                7: { cellWidth: 12, halign: 'center' }, // Tempo (reduced from 14)
+            };
+
+            // Add training log column widths
+            logHeaders.forEach((_, index) => {
+                columnStyles[8 + index] = { cellWidth: logColumnWidth, halign: 'center' };
+            });
+
             // Generate table with autoTable
             autoTable(doc, {
                 startY: yPos,
@@ -437,28 +512,19 @@ export const generateMicrocyclePDF = async (
                     fontStyle: 'bold',
                     halign: 'center',
                     cellPadding: 1,
-                    overflow: 'visible',
+                    overflow: 'linebreak',
                 },
                 bodyStyles: {
                     fontSize: 8,
                     cellPadding: 2,
                     minCellHeight: 12, // Ensure enough height for thumbnails
                 },
-                columnStyles: {
-                    0: { cellWidth: 12, halign: 'center' }, // Thumbnail
-                    1: { cellWidth: 32, halign: 'left' }, // Exercise name
-                    2: { cellWidth: 14, halign: 'center' }, // Type
-                    3: { cellWidth: 12, halign: 'center' }, // Sets
-                    4: { cellWidth: 12, halign: 'center' }, // Reps
-                    5: { cellWidth: 18, halign: 'center' }, // Intensity
-                    6: { cellWidth: 12, halign: 'center' }, // Rest
-                    7: { cellWidth: 14, halign: 'center' }, // Tempo
-                    // Training log columns (remaining space divided)
-                },
+                columnStyles: columnStyles,
                 alternateRowStyles: {
                     fillColor: [250, 250, 250],
                 },
                 margin: { left: 14, right: 14 },
+                tableWidth: availableWidth,
                 didDrawCell: (data) => {
                     // Draw thumbnails in first column
                     if (data.column.index === 0 && data.section === 'body') {

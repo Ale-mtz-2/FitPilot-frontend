@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DndContext,
@@ -38,6 +38,8 @@ interface MicrocycleKanbanBoardProps {
   onReorderExercises: (dayId: string, exerciseIds: string[]) => Promise<void>;
   onMoveExercise: (exerciseId: string, fromDayId: string, toDayId: string, newIndex: number) => Promise<void>;
   onEditMicrocycle?: () => void;
+  onUpdateMicrocycle?: (name: string) => Promise<void>;
+  onUpdateDayName?: (dayId: string, name: string) => Promise<void>;
   hideHeader?: boolean; // Hide header when embedded in MicrocycleCard
 }
 
@@ -60,6 +62,8 @@ export function MicrocycleKanbanBoard({
   onReorderExercises,
   onMoveExercise,
   onEditMicrocycle,
+  onUpdateMicrocycle,
+  onUpdateDayName,
   hideHeader = false,
 }: MicrocycleKanbanBoardProps) {
   const { t } = useTranslation(['training', 'common']);
@@ -69,6 +73,29 @@ export function MicrocycleKanbanBoard({
   const [overSection, setOverSection] = useState<'warmup' | 'main' | 'cooldown' | null>(null);
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [selectedDayExercise, setSelectedDayExercise] = useState<DayExercise | null>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [microcycleName, setMicrocycleName] = useState(microcycle.name);
+
+  // Update local state when prop changes
+  useEffect(() => {
+    setMicrocycleName(microcycle.name);
+  }, [microcycle.name]);
+
+  const handleNameBlur = async () => {
+    setIsEditingName(false);
+    if (microcycleName !== microcycle.name && onUpdateMicrocycle) {
+      await onUpdateMicrocycle(microcycleName);
+    }
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleNameBlur();
+    } else if (e.key === 'Escape') {
+      setMicrocycleName(microcycle.name);
+      setIsEditingName(false);
+    }
+  };
   const [pendingNewExercise, setPendingNewExercise] = useState<{
     exercise: Exercise;
     dayId: string;
@@ -387,31 +414,49 @@ export function MicrocycleKanbanBoard({
           <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200">
             <div className="flex items-center gap-3">
               <div>
-                <h2 className="font-semibold text-gray-900">
-                  {t('training:microcycle.header', { number: microcycle.week_number, name: microcycle.name })}
-                </h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className={`px-2 py-0.5 text-xs rounded font-medium ${getIntensityColor(microcycle.intensity_level)}`}>
-                    {t(`training:intensity.${microcycle.intensity_level}`)}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {t('training:microcycle.dayCount', { count: sortedDays.length })}
-                  </span>
+                <div>
+                  {isEditingName ? (
+                    <input
+                      type="text"
+                      value={microcycleName}
+                      onChange={(e) => setMicrocycleName(e.target.value)}
+                      onBlur={handleNameBlur}
+                      onKeyDown={handleNameKeyDown}
+                      autoFocus
+                      className="font-semibold text-gray-900 border-b border-primary-500 outline-none bg-transparent"
+                    />
+                  ) : (
+                    <h2
+                      className="font-semibold text-gray-900 cursor-pointer hover:bg-gray-100 px-1 rounded -ml-1 transition-colors"
+                      onClick={() => setIsEditingName(true)}
+                      title={t('common:clickToEdit')}
+                    >
+                      {t('training:microcycle.header', { number: microcycle.week_number, name: microcycle.name })}
+                    </h2>
+                  )}
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`px-2 py-0.5 text-xs rounded font-medium ${getIntensityColor(microcycle.intensity_level)}`}>
+                      {t(`training:intensity.${microcycle.intensity_level}`)}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {t('training:microcycle.dayCount', { count: sortedDays.length })}
+                    </span>
+                  </div>
                 </div>
               </div>
+              {onEditMicrocycle && (
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={handlePrintPDF}>
+                    <PrinterIcon className="h-4 w-4 mr-1" />
+                    {t('training:microcycle.printPdf')}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={onEditMicrocycle}>
+                    <PencilIcon className="h-4 w-4 mr-1" />
+                    {t('training:microcycle.edit')}
+                  </Button>
+                </div>
+              )}
             </div>
-            {onEditMicrocycle && (
-              <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={handlePrintPDF}>
-                  <PrinterIcon className="h-4 w-4 mr-1" />
-                  {t('training:microcycle.printPdf')}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={onEditMicrocycle}>
-                  <PencilIcon className="h-4 w-4 mr-1" />
-                  {t('training:microcycle.edit')}
-                </Button>
-              </div>
-            )}
           </div>
         )}
 
@@ -431,6 +476,7 @@ export function MicrocycleKanbanBoard({
                   onExerciseClick={handleExerciseClick}
                   onEditDay={() => onEditDay(day.id)}
                   onDeleteDay={() => onDeleteDay(day.id)}
+                  onUpdateDayName={(name) => onUpdateDayName?.(day.id, name)}
                   isBeingDraggedOver={overDayId === day.id && activeItem !== null}
                   isWarmupDraggedOver={overDayId === day.id && overSection === 'warmup' && activeItem !== null}
                   isMainDraggedOver={overDayId === day.id && overSection === 'main' && activeItem !== null}

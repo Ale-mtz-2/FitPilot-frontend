@@ -40,7 +40,8 @@ interface MicrocycleCardProps {
   onReorderExercises?: (dayId: string, exerciseIds: string[]) => Promise<void>;
   onMoveExercise?: (exerciseId: string, fromDayId: string, toDayId: string, newIndex: number) => Promise<void>;
   hideHeader?: boolean; // Hide header when embedded in tabs
-  // Controlled view mode (for tabs)
+  onUpdateMicrocycle?: (name: string) => Promise<void>;
+  onUpdateDayName?: (dayId: string, name: string) => Promise<void>;
   viewMode?: ViewMode;
   onViewModeChange?: (mode: ViewMode) => void;
 }
@@ -67,6 +68,8 @@ export function MicrocycleCard({
   // Controlled view mode
   viewMode: controlledViewMode,
   onViewModeChange,
+  onUpdateMicrocycle,
+  onUpdateDayName,
 }: MicrocycleCardProps) {
   const { t } = useTranslation();
   const { selectedClient } = useClientStore();
@@ -310,7 +313,8 @@ export function MicrocycleCard({
                   onDeleteDayExercise={onDeleteDayExercise!}
                   onReorderExercises={onReorderExercises!}
                   onMoveExercise={onMoveExercise!}
-                  onEditMicrocycle={onEdit}
+                  onUpdateMicrocycle={onUpdateMicrocycle}
+                  onUpdateDayName={onUpdateDayName}
                   hideHeader
                 />
               </div>

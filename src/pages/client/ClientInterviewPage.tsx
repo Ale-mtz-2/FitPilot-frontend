@@ -23,7 +23,7 @@ export function ClientInterviewPage() {
   const [hasExistingInterview, setHasExistingInterview] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
-  const { answers, setAnswers, reset, goToStep } = useAIStore();
+  const { answers, setAnswers, reset, goToStep, config, loadConfig } = useAIStore();
 
   // Load existing interview data on mount
   useEffect(() => {
@@ -71,6 +71,15 @@ export function ClientInterviewPage() {
 
     loadInterview();
   }, [client.id, reset, setAnswers]);
+
+  // Ensure questionnaire config is loaded
+  useEffect(() => {
+    if (!config) {
+      loadConfig().catch(() => {
+        toast.error(t('ai:errors.configLoadFailed', { defaultValue: 'No pudimos cargar el cuestionario.' }));
+      });
+    }
+  }, [config, loadConfig, t]);
 
   // Map questionnaire answers to interview update format
   const mapAnswersToInterviewData = (data: QuestionnaireAnswers) => {
@@ -182,6 +191,7 @@ export function ClientInterviewPage() {
         initialData={answers}
         onComplete={handleComplete}
         isLoading={isSaving}
+        config={config || undefined}
         submitButtonText={t('ai:interview.saveButton')}
       />
     </div>

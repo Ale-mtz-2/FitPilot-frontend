@@ -165,7 +165,7 @@ export const useAIStore = create<AIStore>()(
       const config = await aiService.getQuestionnaireConfig();
       set({ config });
     } catch (error: any) {
-      set({ error: error.message || 'Error cargando configuración' });
+      set({ error: error.message || 'Error cargando configuracion' });
     }
   },
 
@@ -255,7 +255,9 @@ export const useAIStore = create<AIStore>()(
     set({ isGenerating: true, error: null });
 
     try {
-      const request = buildRequest(answers, effectiveClientId, creationMode, templateName);
+      const normalizedAnswers = normalizeAnswers(answers);
+      set({ answers: normalizedAnswers });
+      const request = buildRequest(normalizedAnswers, effectiveClientId, creationMode, templateName);
       const result = await aiService.generateWorkout(request);
 
       if (result.success) {
@@ -276,7 +278,9 @@ export const useAIStore = create<AIStore>()(
     set({ isGenerating: true, error: null });
 
     try {
-      const request = buildRequest(answers, effectiveClientId, creationMode, templateName);
+      const normalizedAnswers = normalizeAnswers(answers);
+      set({ answers: normalizedAnswers });
+      const request = buildRequest(normalizedAnswers, effectiveClientId, creationMode, templateName);
       const result = await aiService.generatePreview(request);
 
       if (result.success) {
@@ -297,7 +301,9 @@ export const useAIStore = create<AIStore>()(
     set({ isGenerating: true, error: null });
 
     try {
-      const request = buildRequest(answers, effectiveClientId, creationMode, templateName);
+      const normalizedAnswers = normalizeAnswers(answers);
+      set({ answers: normalizedAnswers });
+      const request = buildRequest(normalizedAnswers, effectiveClientId, creationMode, templateName);
       const result = await aiService.testGenerate(request);
 
       if (result.success) {
@@ -324,7 +330,9 @@ export const useAIStore = create<AIStore>()(
     set({ isSaving: true, error: null });
 
     try {
-      const request = buildRequest(answers, effectiveClientId, creationMode, templateName);
+      const normalizedAnswers = normalizeAnswers(answers);
+      set({ answers: normalizedAnswers });
+      const request = buildRequest(normalizedAnswers, effectiveClientId, creationMode, templateName);
       const result = await aiService.saveWorkout(request, {
         macrocycle: generatedWorkout.macrocycle,
         explanation: generatedWorkout.explanation,
@@ -395,6 +403,102 @@ export const useAIStore = create<AIStore>()(
   )
 );
 
+// Helpers to sanitize and normalize answers before hitting the API
+function clampNumber(value: number | undefined, min: number, max: number, fallback: number): number {
+  if (typeof value !== 'number' || Number.isNaN(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
+}
+
+function sanitizeOptionalNumber(value: number | undefined, min: number, max: number): number | undefined {
+  if (typeof value !== 'number' || Number.isNaN(value)) return undefined;
+  if (value < min || value > max) return undefined;
+  return value;
+}
+
+function dedupeStringArray<T extends string>(items?: T[]): T[] | undefined {
+  if (!items || items.length === 0) return undefined;
+  return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean))) as T[];
+}
+
+function dedupeNumberArray(items: number[] | undefined, min?: number, max?: number): number[] | undefined {
+  if (!items || items.length === 0) return undefined;
+  const filtered = items.filter((n) => typeof n === 'number' && !Number.isNaN(n));
+  const bounded = filtered
+    .map((n) => {
+      if (min !== undefined && n < min) return min;
+      if (max !== undefined && n > max) return max;
+      return n;
+    });
+  return Array.from(new Set(bounded)).sort((a, b) => a - b);
+}
+
+function cleanCommaSeparated(value?: string): string {
+  if (!value) return '';
+  const cleaned = value
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+  return cleaned.join(', ');
+}
+
+function normalizeEquipment(equipment?: EquipmentType[]): EquipmentType[] {
+  const fallback: EquipmentType[] = ['bodyweight'];
+  if (!equipment || equipment.length === 0) return fallback;
+  const deduped = Array.from(new Set(equipment));
+  return deduped.length ? deduped : fallback;
+}
+
+function normalizeAnswers(answers: QuestionnaireAnswers): QuestionnaireAnswers {
+  const today = new Date().toISOString().split('T')[0];
+  const daysPerWeek = clampNumber(answers.days_per_week, 1, 7, 4);
+  const sessionDuration = clampNumber(answers.session_duration_minutes, 20, 180, 60);
+  const totalWeeks = clampNumber(answers.total_weeks, 1, 52, 8);
+  const mesocycleWeeks = clampNumber(
+    answers.mesocycle_weeks,
+    1,
+    Math.max(1, Math.min(6, totalWeeks)),
+    4
+  );
+
+  return {
+    ...answers,
+    // Profile
+    fitness_level: answers.fitness_level,
+    age: sanitizeOptionalNumber(answers.age, 10, 100),
+    weight_kg: sanitizeOptionalNumber(answers.weight_kg, 30, 300),
+    height_cm: sanitizeOptionalNumber(answers.height_cm, 120, 250),
+    gender: answers.gender,
+    training_experience_months: sanitizeOptionalNumber(answers.training_experience_months, 0, 600),
+    // Goals
+    primary_goal: answers.primary_goal,
+    specific_goals: cleanCommaSeparated(answers.specific_goals),
+    target_muscle_groups: dedupeStringArray(answers.target_muscle_groups),
+    // Availability
+    days_per_week: daysPerWeek,
+    session_duration_minutes: sessionDuration,
+    preferred_days: dedupeNumberArray(answers.preferred_days, 1, 7),
+    // Equipment
+    has_gym_access: answers.has_gym_access ?? true,
+    available_equipment: normalizeEquipment(answers.available_equipment as EquipmentType[] | undefined),
+    equipment_notes: answers.equipment_notes?.trim() || '',
+    // Restrictions
+    injuries: cleanCommaSeparated(answers.injuries),
+    excluded_exercises: cleanCommaSeparated(answers.excluded_exercises),
+    medical_conditions: cleanCommaSeparated(answers.medical_conditions),
+    mobility_limitations: answers.mobility_limitations?.trim() || '',
+    // Preferences
+    exercise_variety: answers.exercise_variety || 'medium',
+    include_cardio: answers.include_cardio ?? false,
+    include_warmup: answers.include_warmup ?? true,
+    preferred_training_style: (answers.preferred_training_style || '').trim(),
+    // Duration
+    total_weeks: totalWeeks,
+    mesocycle_weeks: mesocycleWeeks,
+    include_deload: answers.include_deload ?? true,
+    start_date: answers.start_date?.trim() || today,
+  };
+}
+
 // Helper function to build the request from answers
 function buildRequest(
   answers: QuestionnaireAnswers,
@@ -402,24 +506,26 @@ function buildRequest(
   creationMode: CreationMode | null,
   templateName: string
 ): AIWorkoutRequest {
+  const normalized = normalizeAnswers(answers);
+
   // Parse specific_goals from string to array
-  const specificGoals = answers.specific_goals
-    ? answers.specific_goals.split(',').map((s) => s.trim()).filter(Boolean)
+  const specificGoals = normalized.specific_goals
+    ? normalized.specific_goals.split(',').map((s) => s.trim()).filter(Boolean)
     : [];
 
   // Parse injuries from string to array
-  const injuries = answers.injuries
-    ? answers.injuries.split(',').map((s) => s.trim()).filter(Boolean)
+  const injuries = normalized.injuries
+    ? normalized.injuries.split(',').map((s) => s.trim()).filter(Boolean)
     : [];
 
   // Parse excluded_exercises from string to array
-  const excludedExercises = answers.excluded_exercises
-    ? answers.excluded_exercises.split(',').map((s) => s.trim()).filter(Boolean)
+  const excludedExercises = normalized.excluded_exercises
+    ? normalized.excluded_exercises.split(',').map((s) => s.trim()).filter(Boolean)
     : [];
 
   // Parse medical_conditions from string to array
-  const medicalConditions = answers.medical_conditions
-    ? answers.medical_conditions.split(',').map((s) => s.trim()).filter(Boolean)
+  const medicalConditions = normalized.medical_conditions
+    ? normalized.medical_conditions.split(',').map((s) => s.trim()).filter(Boolean)
     : [];
 
   // Determine effective creation mode
@@ -427,46 +533,46 @@ function buildRequest(
 
   return {
     user_profile: {
-      fitness_level: answers.fitness_level as FitnessLevel,
-      age: answers.age,
-      weight_kg: answers.weight_kg,
-      height_cm: answers.height_cm,
-      gender: answers.gender,
-      training_experience_months: answers.training_experience_months,
+      fitness_level: normalized.fitness_level as FitnessLevel,
+      age: normalized.age,
+      weight_kg: normalized.weight_kg,
+      height_cm: normalized.height_cm,
+      gender: normalized.gender,
+      training_experience_months: normalized.training_experience_months,
     },
     goals: {
-      primary_goal: answers.primary_goal as PrimaryGoal,
+      primary_goal: normalized.primary_goal as PrimaryGoal,
       specific_goals: specificGoals,
-      target_muscle_groups: answers.target_muscle_groups,
+      target_muscle_groups: normalized.target_muscle_groups,
     },
     availability: {
-      days_per_week: answers.days_per_week || 4,
-      session_duration_minutes: answers.session_duration_minutes || 60,
-      preferred_days: answers.preferred_days,
+      days_per_week: normalized.days_per_week || 4,
+      session_duration_minutes: normalized.session_duration_minutes || 60,
+      preferred_days: normalized.preferred_days,
     },
     equipment: {
-      has_gym_access: answers.has_gym_access ?? true,
-      available_equipment: (answers.available_equipment || ['bodyweight']) as EquipmentType[],
-      equipment_notes: answers.equipment_notes,
+      has_gym_access: normalized.has_gym_access ?? true,
+      available_equipment: (normalized.available_equipment || ['bodyweight']) as EquipmentType[],
+      equipment_notes: normalized.equipment_notes,
     },
     restrictions: {
       injuries,
       excluded_exercises: excludedExercises,
       medical_conditions: medicalConditions,
-      mobility_limitations: answers.mobility_limitations,
+      mobility_limitations: normalized.mobility_limitations,
     },
     preferences: {
-      exercise_variety: answers.exercise_variety,
-      include_cardio: answers.include_cardio,
-      include_warmup: answers.include_warmup,
+      exercise_variety: normalized.exercise_variety,
+      include_cardio: normalized.include_cardio,
+      include_warmup: normalized.include_warmup,
       include_cooldown: false,
-      preferred_training_style: answers.preferred_training_style,
+      preferred_training_style: normalized.preferred_training_style,
     },
     program_duration: {
-      total_weeks: answers.total_weeks || 8,
-      mesocycle_weeks: answers.mesocycle_weeks || 4,
-      include_deload: answers.include_deload ?? true,
-      start_date: answers.start_date || new Date().toISOString().split('T')[0],
+      total_weeks: normalized.total_weeks || 8,
+      mesocycle_weeks: normalized.mesocycle_weeks || 4,
+      include_deload: normalized.include_deload ?? true,
+      start_date: normalized.start_date || new Date().toISOString().split('T')[0],
     },
     creation_mode: effectiveMode,
     client_id: effectiveMode === 'client' ? clientId || undefined : undefined,

@@ -8,7 +8,7 @@ import { EquipmentStep } from './steps/EquipmentStep';
 import { RestrictionsStep } from './steps/RestrictionsStep';
 import { PreferencesStep } from './steps/PreferencesStep';
 import { useAIStore } from '../../store/aiStore';
-import type { QuestionnaireAnswers } from '../../types/ai';
+import type { QuestionnaireAnswers, QuestionnaireConfig } from '../../types/ai';
 
 // Steps for interview mode (without preferences/duration)
 const INTERVIEW_STEPS = ['profile', 'goals', 'availability', 'equipment', 'restrictions'];
@@ -57,6 +57,11 @@ export interface TrainingQuestionnaireProps {
    * Example: [0, 3] would show only Profile (0) and Equipment (3) steps.
    */
   stepsToShow?: number[];
+
+  /**
+   * Backend questionnaire config for alignment (optional).
+   */
+  config?: QuestionnaireConfig;
 }
 
 export const TrainingQuestionnaire: React.FC<TrainingQuestionnaireProps> = ({
@@ -67,6 +72,7 @@ export const TrainingQuestionnaire: React.FC<TrainingQuestionnaireProps> = ({
   isLoading = false,
   submitButtonText,
   stepsToShow,
+  config,
 }) => {
   const { t } = useTranslation('ai');
 
@@ -79,7 +85,13 @@ export const TrainingQuestionnaire: React.FC<TrainingQuestionnaireProps> = ({
   } = useAIStore();
 
   // Determine which steps to use based on mode
-  const allStepIds = mode === 'interview' ? INTERVIEW_STEPS : TEMPLATE_STEPS;
+  const allowedStepIds = mode === 'interview' ? INTERVIEW_STEPS : TEMPLATE_STEPS;
+  const configStepIds = config?.steps?.map((step) => step.step_id) || [];
+  const configuredStepIds =
+    configStepIds.length > 0
+      ? (configStepIds.filter((id) => allowedStepIds.includes(id)) as typeof allowedStepIds)
+      : [];
+  const allStepIds = configuredStepIds.length > 0 ? configuredStepIds : allowedStepIds;
 
   // Filter steps if stepsToShow is provided
   const stepIds = stepsToShow && stepsToShow.length > 0
@@ -115,8 +127,23 @@ export const TrainingQuestionnaire: React.FC<TrainingQuestionnaireProps> = ({
 
   const steps = stepIds.map((id) => ({
     id,
-    title: t(`steps.${id}`),
+    title: config?.steps?.find((step) => step.step_id === id)?.title || t(`steps.${id}`),
   }));
+
+  const getFieldRange = (
+    stepId: string,
+    fieldName: string,
+    fallback: { min: number; max: number }
+  ): { min: number; max: number } => {
+    const field = config?.steps
+      ?.find((s) => s.step_id === stepId)
+      ?.fields.find((f) => f.name === fieldName);
+
+    return {
+      min: typeof field?.min === 'number' ? field.min : fallback.min,
+      max: typeof field?.max === 'number' ? field.max : fallback.max,
+    };
+  };
 
   const handleNext = () => {
     if (currentStep < totalSteps - 1) {
@@ -167,7 +194,19 @@ export const TrainingQuestionnaire: React.FC<TrainingQuestionnaireProps> = ({
       case 'goals':
         return !!answers.primary_goal;
       case 'availability':
-        return !!answers.days_per_week && !!answers.session_duration_minutes;
+        const daysRange = getFieldRange('availability', 'days_per_week', { min: 1, max: 7 });
+        const durationRange = getFieldRange('availability', 'session_duration_minutes', {
+          min: 20,
+          max: 180,
+        });
+        return (
+          typeof answers.days_per_week === 'number' &&
+          answers.days_per_week >= daysRange.min &&
+          answers.days_per_week <= daysRange.max &&
+          typeof answers.session_duration_minutes === 'number' &&
+          answers.session_duration_minutes >= durationRange.min &&
+          answers.session_duration_minutes <= durationRange.max
+        );
       case 'equipment':
         return (
           answers.has_gym_access !== undefined &&
@@ -178,7 +217,18 @@ export const TrainingQuestionnaire: React.FC<TrainingQuestionnaireProps> = ({
         return true;
       case 'preferences':
         // For template mode, require program duration fields
-        return !!answers.total_weeks && !!answers.start_date;
+        const totalWeeksRange = getFieldRange('preferences', 'total_weeks', { min: 1, max: 52 });
+        const mesoRange = getFieldRange('preferences', 'mesocycle_weeks', { min: 1, max: 6 });
+        const totalWeeksValid =
+          typeof answers.total_weeks === 'number' &&
+          answers.total_weeks >= totalWeeksRange.min &&
+          answers.total_weeks <= totalWeeksRange.max;
+        const mesoWeeksValid =
+          typeof answers.mesocycle_weeks === 'number' &&
+          answers.mesocycle_weeks >= mesoRange.min &&
+          answers.mesocycle_weeks <= Math.min(mesoRange.max, answers.total_weeks || mesoRange.max);
+
+        return totalWeeksValid && mesoWeeksValid && !!answers.start_date;
       default:
         return false;
     }
