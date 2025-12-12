@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ClientCard } from '../../components/nutrition/ClientCard';
+import { ClientCard } from '@/components/nutrition/ClientCard';
 import { ArrowUpDown, Search } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+
 
 interface Client {
   id: string;
@@ -26,7 +27,7 @@ export function NutritionClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
 
   useEffect(() => {
-    axios.get('http://localhost:3001/clients')
+    axios.get('https://693c97b4b762a4f15c40dfa2.mockapi.io/api/v1/clients')
     .then(response => {
       setClients(response.data);
     })
