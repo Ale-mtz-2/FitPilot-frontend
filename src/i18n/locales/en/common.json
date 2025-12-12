@@ -9,7 +9,10 @@
     "exercises": "Exercises",
     "templates": "Templates",
     "aiGenerator": "AI Generator",
-    "settings": "Settings"
+    "settings": "Settings",
+    "nutrition": "Nutrition",
+    "nutritionClients": "Clients",
+    "nutritionCreateDiet": "Create New Diet"
   },
 
   "clientNav": {

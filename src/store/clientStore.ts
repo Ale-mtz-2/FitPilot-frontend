@@ -34,6 +34,7 @@ export const useClientStore = create<ClientState>()(
 
         try {
           const response = await clientsApi.getClients(params);
+          console.log("response_clients", response);
           set({ clients: response.clients, total: response.total });
         } catch (error: any) {
           set({ error: error.message || 'Failed to fetch clients' });

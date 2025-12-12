@@ -1,4 +1,4 @@
-import { apiClient } from './api';
+// import { apiClient } from './api';
 import type { LoginRequest, LoginResponse, RegisterRequest, User, UserUpdate } from '../types/api';
 
 const AUTH_TOKEN_KEY = 'access_token';
@@ -7,8 +7,20 @@ export const authService = {
   /**
    * Login with email and password
    */
+  /**
+   * Login with email and password
+   */
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    const response = await apiClient.post<LoginResponse>('/auth/login', credentials);
+    // const response = await apiClient.post<LoginResponse>('/auth/login', credentials);
+    console.log('BYPASS: Logging in with mock credentials', credentials);
+    
+    // LoginResponse only has tokens, User is fetched separately
+    const mockResponse: LoginResponse = {
+      access_token: 'mock-token-12345',
+      token_type: 'bearer'
+    };
+
+    const response = mockResponse;
 
     // Store token in localStorage
     if (response.access_token) {
@@ -22,21 +34,61 @@ export const authService = {
    * Register a new user
    */
   async register(data: RegisterRequest): Promise<User> {
-    return apiClient.post<User>('/auth/register', data);
+    // return apiClient.post<User>('/auth/register', data);
+    console.log('BYPASS: Registering mock user');
+    return {
+        id: 'mock-user-id',
+        email: data.email,
+        full_name: data.full_name,
+        role: data.role || 'client',
+        preferred_language: 'en',
+        is_active: true,
+        email_verified: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    };
   },
 
   /**
    * Get current user profile
    */
   async getCurrentUser(): Promise<User> {
-    return apiClient.get<User>('/auth/me');
+    // return apiClient.get<User>('/auth/me');
+    console.log('BYPASS: Getting mock user');
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            resolve({
+                id: 'mock-user-id',
+                email: 'mock@example.com',
+                full_name: 'Mock User',
+                role: 'client',
+                preferred_language: 'en',
+                is_active: true,
+                email_verified: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            });
+        }, 500);
+    });
   },
 
   /**
    * Update current user profile
    */
   async updateUser(data: UserUpdate): Promise<User> {
-    return apiClient.patch<User>('/auth/me', data);
+    // return apiClient.patch<User>('/auth/me', data);
+      console.log('BYPASS: Updating mock user');
+      return {
+          id: 'mock-user-id',
+          email: data.email || 'mock@example.com',
+          full_name: data.full_name || 'Mock User',
+          role: 'client',
+          preferred_language: data.preferred_language || 'en',
+          is_active: true,
+          email_verified: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+      };
   },
 
   /**

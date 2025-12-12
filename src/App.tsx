@@ -18,8 +18,18 @@ import {
   ClientDietPage,
 } from './pages/client';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { NutritionClientsPage } from './pages/nutrition/NutritionClientsPage';
+import { NutritionDashboardPage } from './pages/nutrition/NutritionDashboardPage';
+import { NutritionLayout } from './components/layout/NutritionLayout';
+import { NutritionClientDetailPage } from './pages/nutrition/NutritionClientDetailPage';
+
+
+// Example of how to import a specific remote module:
+// const RemoteDashboard = React.lazy(() => import('dashboard/App'));
+// import { RemoteWrapper } from './components/common/RemoteWrapper';
 
 function App() {
+
   return (
     <>
       <Toaster
@@ -161,6 +171,23 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+
+        {/* Nutrition Routes */}
+        <Route
+          path="/nutrition"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <NutritionLayout />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        >
+           <Route index element={<NutritionDashboardPage />} />
+           <Route path="clients" element={<NutritionClientsPage />} />
+           <Route path="clients/:clientId" element={<NutritionClientDetailPage />} />
+        </Route>
 
         {/* Catch all - 404 */}
         <Route path="*" element={<NotFoundPage />} />
