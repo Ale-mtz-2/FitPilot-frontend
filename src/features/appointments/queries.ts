@@ -1,7 +1,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { deleteAppointment, getAppointments, insertAppointment, updateAppointment, startConsultation, finishConsultation } from "./api";
-import { IAppointment } from "./types";
+import { deleteAppointment, getAppointments, insertAppointment, updateAppointment, startConsultation, finishConsultation, createAppointmentDraft, updateAppointmentDraft, getAppointmentDraft } from "./api";
+import { IAppointment, CreateAppointmentDraftRequest, UpdateAppointmentDraftRequest } from "./types";
 
 
 export const useGetAppointments = (professionalId: number | string) => {
@@ -69,5 +69,27 @@ export const useFinishConsultation = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["appointments"] });
         },
+    });
+};
+
+export const useCreateAppointmentDraft = () => {
+    return useMutation({
+        mutationFn: (data: CreateAppointmentDraftRequest) => createAppointmentDraft(data),
+    });
+};
+
+export const useUpdateAppointmentDraft = () => {
+    return useMutation({
+        mutationFn: ({ appointmentId, data }: { appointmentId: number; data: UpdateAppointmentDraftRequest }) => 
+            updateAppointmentDraft(appointmentId, data),
+    });
+};
+
+export const useGetAppointmentDraft = (appointmentId: number) => {
+    return useQuery({
+        queryKey: ["appointment-draft", appointmentId],
+        queryFn: () => getAppointmentDraft(appointmentId),
+        enabled: !!appointmentId,
+        retry: false
     });
 };

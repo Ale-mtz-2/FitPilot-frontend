@@ -2,7 +2,6 @@
   "locale": "es",
   "appName": "FitPilot",
   "appTagline": "Gestión de Entrenamientos",
-
   "nav": {
     "dashboard": "Panel",
     "clients": "Clientes",
@@ -12,9 +11,17 @@
     "settings": "Configuración",
     "nutrition": "Nutrición",
     "nutritionClients": "Clientes",
-    "nutritionCreateDiet": "Crear nueva dieta"
+    "nutritionCreateDiet": "Crear nuevo plan",
+    "nutritionMealBuilder": "Constructor de Comidas",
+    "clientsMenus": "Menús Clientes",
+    "clientPlans": "Planes Clientes",
+    "agenda": "Agenda"
   },
-
+  "mealPlans": {
+    "overview": "Resumen",
+    "builder": "Constructor",
+    "templates": "Plantillas"
+  },
   "clientNav": {
     "summary": "Resumen",
     "interview": "Entrevista",
@@ -22,13 +29,11 @@
     "metrics": "Métricas",
     "diet": "Dieta"
   },
-
   "roles": {
     "admin": "Administrador",
     "trainer": "Entrenador",
     "client": "Cliente"
   },
-
   "buttons": {
     "save": "Guardar",
     "cancel": "Cancelar",
@@ -95,7 +100,6 @@
     "days": "días",
     "weeks": "semanas"
   },
-
   "dashboard": {
     "welcome": "¡Bienvenido de nuevo, {{name}}!",
     "subtitle": "Esto es lo que está pasando con tus entrenamientos hoy.",
@@ -113,7 +117,6 @@
     "noActivity": "No hay actividad reciente para mostrar",
     "startCreating": "Comienza a crear mesociclos para ver tu actividad aquí"
   },
-
   "metrics": {
     "title": "Métricas del Microciclo",
     "week": "Semana",

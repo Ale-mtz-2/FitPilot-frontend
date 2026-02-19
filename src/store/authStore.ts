@@ -34,7 +34,11 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const response = await authService.login(credentials);
+          // Map email to identifier for transition
+          const response = await authService.login({
+            identifier: credentials.email,
+            password: credentials.password
+          });
           set({ token: response.access_token, isAuthenticated: true });
 
           // Load user profile after successful login

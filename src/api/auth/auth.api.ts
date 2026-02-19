@@ -1,8 +1,9 @@
 import { createClient } from "../api.client";
 
 type LoginPayload = {
-  email: string;
+  identifier: string;
   password: string;
+  app_type?: string;
 };
 
 export type LoginResponse = {
@@ -26,7 +27,9 @@ export const loginRequest = async (
   return data;
 };
 
-export const getUserRequest = async (): Promise<any> => {
-  const { data } = await api.get("/auth/me");
+import { User } from "../../types/api";
+
+export const getUserRequest = async (): Promise<User> => {
+  const { data } = await api.get<User>("/auth/me");
   return data;
 };

@@ -4,15 +4,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
-import { Mail, Lock, Linkedin, Twitter, Dumbbell, Zap, Timer } from 'lucide-react';
+import { Mail, Lock, Dumbbell, Zap, Timer } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/newAuthStore';
 import { loginSchema, LoginFormData } from '../../utils/validation';
 import toast from 'react-hot-toast';
-import { useLoginMutation} from '@/hooks/useLogin';
+import { useLoginMutation } from '@/hooks/useLogin';
 
 export function LoginPage() {
-    const [isLogin, setIsLogin] = useState(true);
+    const [isLogin] = useState(true);
     const navigate = useNavigate();
     const { isAuthenticated } = useAuthStore();
     const { mutate: login, isPending: isLoading, error } = useLoginMutation();
@@ -24,7 +24,7 @@ export function LoginPage() {
     } = useForm<LoginFormData>({
         resolver: zodResolver(loginSchema),
         defaultValues: {
-            email: '',
+            identifier: '',
             password: '',
         },
     });
@@ -36,7 +36,7 @@ export function LoginPage() {
     }, [isAuthenticated, navigate]);
 
     const onSubmit = (data: LoginFormData) => {
-        login(data, {
+        login({ ...data, app_type: 'PROFESSIONAL_APP' }, {
             onSuccess: () => {
                 toast.success('Successfully logged in!');
                 navigate('/', { replace: true });
@@ -132,17 +132,14 @@ export function LoginPage() {
                         <p className="text-gray-500 text-sm">Please enter your details to sign in.</p>
                     </div>
 
-                    {/* Tabs */}
-                    
-
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                         <Input 
-                            label="Email"
-                            placeholder="trainer1@fitpilot.com"
-                            type="email"
+                            label="Email, Phone, or Username"
+                            placeholder="trainer1@fitpilot.com, +1234567890, or trainer1"
+                            type="text"
                             icon={<Mail className="w-5 h-5" />}
-                            error={errors.email?.message}
-                            {...register('email')}
+                            error={errors.identifier?.message}
+                            {...register('identifier')}
                         />
                         
                         <div className="space-y-1">
@@ -179,24 +176,6 @@ export function LoginPage() {
                     </form>
 
                     <div className="mt-8">
-                        {/* <div className="relative">
-                            <div className="absolute inset-0 flex items-center">
-                                <div className="w-full border-t border-gray-100"></div>
-                            </div>
-                            <div className="relative flex justify-center text-sm">
-                                <span className="px-4 bg-white text-gray-400">Or continue with</span>
-                            </div>
-                        </div>
-
-                        <div className="mt-6 flex justify-center gap-4">
-                            <button className="p-2 border border-blue-100 rounded-xl hover:bg-blue-50 hover:border-blue-200 transition-colors group">
-                                <Linkedin className="w-5 h-5 text-gray-400 group-hover:text-[#0077b5] transition-colors" />
-                            </button>
-                            <button className="p-2 border border-blue-100 rounded-xl hover:bg-blue-50 hover:border-blue-200 transition-colors group hover:cursor-pointer">
-                                <Twitter className="w-5 h-5 text-gray-400 group-hover:text-[#1da1f2] transition-colors" />
-                            </button>
-                        </div> */}
-                        
                         <div className="mt-8 text-center">
                             <p className="text-sm text-gray-500">
                                 Don't have an account?{' '}

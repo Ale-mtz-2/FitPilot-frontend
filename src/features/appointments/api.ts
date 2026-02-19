@@ -1,6 +1,6 @@
 // import { nutritionApi } from "./nutrition.client";
 import { createClient } from '@/api/api.client';
-import { IAppointment } from '@/features/appointments/types';
+import { IAppointment, CreateAppointmentDraftRequest, UpdateAppointmentDraftRequest } from '@/features/appointments/types';
 
 const client = createClient({ baseURL: import.meta.env.VITE_NUTRITION_API_URL });
 
@@ -51,3 +51,18 @@ export const finishConsultation = async (id: number, durationSeconds: number, no
     });
 };
 
+
+export const createAppointmentDraft = async (data: CreateAppointmentDraftRequest): Promise<any> => {
+    const response = await client.post(`/v1/appointments/${data.appointment_id}/draft`, data);
+    return response.data;
+};
+
+export const updateAppointmentDraft = async (appointmentId: number, data: UpdateAppointmentDraftRequest): Promise<any> => {
+    const response = await client.patch(`/v1/appointments/${appointmentId}/draft`, data);
+    return response.data;
+};
+
+export const getAppointmentDraft = async (appointmentId: number): Promise<any> => {
+    const response = await client.get(`/v1/appointments/${appointmentId}/draft`);
+    return response.data;
+};

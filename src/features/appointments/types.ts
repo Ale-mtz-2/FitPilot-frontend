@@ -12,4 +12,33 @@ export interface IAppointment {
     start_date?: string;
     end_date?: string;
     effective_duration?: number;
+    type?: 'NUTRITION' | 'TRAINING' | 'BOTH';
+    stage?: string;
+}
+
+export interface CreateAppointmentDraftRequest {
+    appointment_id: number;
+    stage: string;
+    notes?: string;
+    metrics?: any;
+    target_macros?: {
+        calories: number;
+        protein: number;
+        carbs: number;
+        fats: number;
+    };
+    json_state?: any;
+}
+
+export interface UpdateAppointmentDraftRequest {
+    stage?: string;
+    notes?: string;
+    metrics?: any;
+    target_macros?: {
+        calories: number;
+        protein: number;
+        carbs: number;
+        fats: number;
+    };
+    json_state?: any;
 }

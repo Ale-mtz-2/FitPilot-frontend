@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAvailableSlots, getProfessionalClients, insertAvailableSlot, updateAvailableSlot } from "@/features/professional-clients/api";
+import { getAvailableSlots, getProfessionalClients, insertAvailableSlot, updateAvailableSlot, assignMenusToClient } from "@/features/professional-clients/api";
+import { toast } from "react-hot-toast";
 import { IAvailableSlots, IProfessionalClient } from "@/features/professional-clients/types";
 
 /**
@@ -55,6 +56,22 @@ export const useUpdateAvailableSlot = () => {
         },
     });
 };
+
+export const useAssignMenusToClient = () => {
+    return useMutation({
+        mutationFn: ({ clientId, menuIds }: { clientId: number; menuIds: number[] }) => 
+            assignMenusToClient(clientId, menuIds),
+        onSuccess: () => {
+            toast.success('Menús asignados correctamente');
+        },
+        onError: () => {
+            toast.error('Error al asignar los menús');
+        }
+    });
+};
+
+
+
 
 
 

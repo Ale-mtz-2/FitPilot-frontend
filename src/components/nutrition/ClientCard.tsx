@@ -4,41 +4,39 @@ import { ChevronRight, Calendar, Dumbbell, Utensils } from 'lucide-react';
 interface ClientCardProps {
   image: string;
   clientName: string;
+  clientLastName: string;
   nextAppointment: string | null;
   serviceType?: string;
+  services?: string[];
   onAction?: () => void;
 }
 
-export function ClientCard({ image, clientName, nextAppointment, serviceType, onAction }: ClientCardProps) {
+export function ClientCard({ image, clientName, clientLastName, nextAppointment, serviceType, services, onAction }: ClientCardProps) {
   
-  const getServiceBadge = (type?: string) => {
-      switch(type) {
-          case 'Nutrition':
-              return (
-                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-nutrition-100 text-nutrition-700 text-[10px] font-bold uppercase tracking-wider">
-                      <Utensils className="w-3 h-3" />
-                      Nutrición
-                  </div>
-              );
-          case 'Coaching':
-              return (
-                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider">
-                      <Dumbbell className="w-3 h-3" />
-                      Entrenamiento
-                  </div>
-              );
-          case 'Nutrition & Coaching':
-              return (
-                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 text-[10px] font-bold uppercase tracking-wider">
-                      <Utensils className="w-3 h-3" />
-                      <span className="text-[8px]">+</span>
-                      <Dumbbell className="w-3 h-3" />
-                      Completo
-                  </div>
-              );
-          default:
-              return null;
+  const getServiceBadge = (name: string) => {
+      // Generate a consistent color based on the service name length or char code if needed, 
+      // or just default to a nutrition style for now as requested or generic.
+      // Trying to match existing style.
+      const isNutrition = name.toLowerCase().includes('nutricion') || name.toLowerCase().includes('nutrition');
+      const isTraining = name.toLowerCase().includes('entrenamiento') || name.toLowerCase().includes('training') || name.toLowerCase().includes('coaching');
+
+      let styles = "bg-gray-100 text-gray-700";
+      let Icon = Utensils;
+
+      if (isNutrition) {
+          styles = "bg-nutrition-100 text-nutrition-700";
+          Icon = Utensils;
+      } else if (isTraining) {
+          styles = "bg-blue-100 text-blue-700";
+          Icon = Dumbbell;
       }
+
+      return (
+          <div key={name} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md ${styles} text-[10px] font-bold uppercase tracking-wider`}>
+              <Icon className="w-3 h-3" />
+              {name}
+          </div>
+      );
   };
 
   return (
@@ -68,6 +66,9 @@ export function ClientCard({ image, clientName, nextAppointment, serviceType, on
              <h3 className="text-lg font-bold text-gray-900 truncate">
                 {clientName}
             </h3>
+            <h3 className="text-lg font-bold text-gray-900 truncate">
+                {clientLastName}
+            </h3>
         </div>
        
         
@@ -75,20 +76,36 @@ export function ClientCard({ image, clientName, nextAppointment, serviceType, on
             Gestionar plan nutricional y seguimiento.
         </p>
 
-        <div className="mb-2">
-            {getServiceBadge(serviceType)}
+        <div className="mb-2 flex flex-wrap gap-2">
+            {services && services.length > 0 ? (
+                services.map(service => getServiceBadge(service))
+            ) : (
+                // Fallback to old behavior if no services provided, though user implied services would come.
+                // Or maybe just show nothing/default.
+                // Keeping old logic for backward compatibility if needed or just removing it if services replaces it.
+                // User said "los que vengan los puedes mostrar", implies existing ones.
+                // I will effectively replace the old single badge with the list.
+                // If services is empty/undefined, maybe show nothing?
+                // Let's keep the old one as fallback JUST IN CASE services is undefined but serviceType is passed
+                serviceType && (
+                     <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-nutrition-100 text-nutrition-700 text-[10px] font-bold uppercase tracking-wider">
+                      <Utensils className="w-3 h-3" />
+                      {serviceType}
+                  </div>
+                )
+            )}
         </div>
 
         <div className="flex items-center gap-4">
             {nextAppointment ? (
                 <div className="flex items-center gap-1.5 text-xs font-medium text-nutrition-600 bg-nutrition-50 px-2.5 py-1 rounded-full">
                     <Calendar className="w-3.5 h-3.5" />
-                    <span>Proxima cita en nutrición: {new Date(nextAppointment).toLocaleDateString()}</span>
+                    <span>Proxima sesión en nutrición: {new Date(nextAppointment).toLocaleDateString()}</span>
                 </div>
             ) : (
                 <div className="flex items-center gap-1.5 text-xs font-medium text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full">
                     <Calendar className="w-3.5 h-3.5" />
-                    <span>Sin cita</span>
+                    <span>Sin sesión</span>
                 </div>
             )}
         </div>

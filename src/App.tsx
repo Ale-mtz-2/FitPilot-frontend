@@ -24,13 +24,20 @@ import { NutritionDashboardPage } from './pages/nutrition/NutritionDashboardPage
 import { NutritionAgendaPage } from './pages/nutrition/NutritionAgendaPage';
 import { NutritionLayout } from './components/layout/NutritionLayout';
 import { NutritionClientDetailPage } from './pages/nutrition/NutritionClientDetailPage';
+import { NutritionClientMedicalHistoryPage } from './pages/nutrition/NutritionClientMedicalHistoryPage';
 import { NutritionConsultationPage } from './pages/nutrition/NutritionConsultationPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { AuthLayout } from './components/layout/AuthLayout';
-
-// Example of how to import a specific remote module:
-// const RemoteDashboard = React.lazy(() => import('dashboard/App'));
-// import { RemoteWrapper } from './components/common/RemoteWrapper';
+import { MealPlansLayout } from './pages/nutrition/meal-plans/MealPlansLayout';
+import { MealOverviewPage } from './pages/nutrition/meal-plans/MealOverviewPage';
+import { MealBuilderPage } from './pages/nutrition/meal-plans/MealBuilderPage';
+import { MealTemplatesPage } from './pages/nutrition/meal-plans/MealTemplatesPage';
+import { MenuCreationPage } from './pages/nutrition/meal-plans/MenuCreationPage';
+import { ReusableMenusPage } from './pages/nutrition/meal-plans/ReusableMenusPage';
+import { ClientsMenusPage } from './pages/nutrition/meal-plans/ClientsMenusPage';
+import { ClientWeeklyMenuView } from './pages/nutrition/meal-plans/ClientWeeklyMenuView';
+import { RegisterClientPage } from './pages/nutrition/RegisterClientPage';
+import { DraftMenusPage } from './pages/nutrition/meal-plans/DraftMenusPage';
 
 function App() {
 
@@ -211,9 +218,22 @@ function App() {
           <Route index element={<NutritionDashboardPage />} />
           <Route path="agenda" element={<NutritionAgendaPage />} />
           <Route path="clients" element={<NutritionClientsPage />} />
+          <Route path="clients/new" element={<RegisterClientPage />} />
+          <Route path="clients/:clientId/medical-history" element={<NutritionClientMedicalHistoryPage />} />
           <Route path="clients/:clientId" element={<NutritionClientDetailPage />} />
           <Route path="consultation/:id" element={<NutritionConsultationPage />} />
+          <Route path="meal-plans" element={<MealPlansLayout />}>
+            <Route index element={<MealOverviewPage />} />
+            <Route path="builder" element={<MealBuilderPage />} />
+            <Route path="templates" element={<MealTemplatesPage />} />
+            <Route path="create-menu" element={<MenuCreationPage />} />
+            <Route path="reusable-menus" element={<ReusableMenusPage />} />
+            <Route path="clients-menus" element={<ClientsMenusPage />} />
+            <Route path="clients-menus/weekly-view/:clientId" element={<ClientWeeklyMenuView />} />
+            <Route path="drafts" element={<DraftMenusPage />} />
+          </Route>
         </Route>
+
 
         {/* Catch all - 404 */}
         <Route path="*" element={<NotFoundPage />} />

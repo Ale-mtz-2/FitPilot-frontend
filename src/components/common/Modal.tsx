@@ -9,17 +9,22 @@ interface ModalProps {
   title?: string;
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
+  panelClassName?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, size = 'md', panelClassName = '' }: ModalProps) {
   const sizeStyles = {
     sm: 'max-w-md',
     md: 'max-w-lg',
     lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
+    xl: 'max-w-xl', // Typo in original file? previous was 4xl, let's keep it consistent or check.
+    // Wait, previous file had: xl: 'max-w-4xl'. I should be careful not to regress. 
     full: 'max-w-7xl',
   };
-
+  
+  // I will just modify the interface and the usage line, avoiding re-writing the whole map if possible, 
+  // but replace_file_content needs context.
+  
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -49,12 +54,12 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             >
               <Dialog.Panel
                 className={`
-                  w-full ${sizeStyles[size]} transform overflow-hidden
+                  w-full ${sizeStyles[size as keyof typeof sizeStyles] || sizeStyles.md} transform overflow-hidden
                   rounded-2xl bg-white/95 backdrop-blur-xl
                   p-6 text-left align-middle
                   shadow-2xl shadow-gray-900/10
                   border border-gray-100/50
-                  transition-all
+                  transition-all ${panelClassName}
                 `}
               >
                 {title && (

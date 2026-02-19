@@ -3,9 +3,15 @@ export interface IProfessionalClient {
     id: number;
     // Add other fields as per your API response
     name?: string;
+    lastname?: string;
     email?: string;
     profile_picture?: string;
+    phone_number?: string | null;
     deleted_at?: string | null;
+    services?: string[];
+    gender?: string | null;
+    genre?: string;
+    date_of_birth?: string | null;
 }
 
 export interface Client extends IProfessionalClient {
@@ -30,5 +36,7 @@ export interface IAvailableSlots {
     is_active: boolean;
     deleted_at?: string | null;
 }
+
+
 
 

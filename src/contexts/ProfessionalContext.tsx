@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/newAuthStore';
 import { JWTPayload, ProfessionalContextType, User } from '../types/api';
+import { getUserRequest } from '../api/auth/auth.api';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 const ProfessionalContext = createContext<ProfessionalContextType | undefined>(undefined);
 
@@ -25,44 +27,77 @@ const decodeToken = (token: string): JWTPayload | null => {
 };
 
 export const ProfessionalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { token, user: authUser } = useAuthStore();
+    const { token, user: authUser, setUser } = useAuthStore();
     const [professional, setProfessional] = useState<JWTPayload | null>(null);
-    const [userData, setUserData] = useState<User | null>(authUser);
+    const [storedUserData, setStoredUserData] = useLocalStorage<User | null>('user_data', null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Hydrate authStore from localStorage on mount
+    useEffect(() => {
+        if (!authUser && storedUserData && token) {
+            setUser(storedUserData);
+        }
+    }, [authUser, storedUserData, token, setUser]);
+
     const refreshProfessional = useCallback(async () => {
+        if (!token) {
+            setProfessional(null);
+            setStoredUserData(null);
+            setIsLoading(false);
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
         try {
-            if (token) {
-                const decoded = decodeToken(token);
-                setProfessional(decoded);
-            } else {
-                setProfessional(null);
+            const decoded = decodeToken(token);
+            setProfessional(decoded);
+            
+            // Avoid redundant fetch if we already have the user data in authStore or localStorage
+            // and it seems to belong to the same professional/user
+            if (authUser && authUser.id === decoded?.sub) {
+                // If it's already in the store, we don't necessarily need to fetch again immediately
+                // but we might want to sync it to localStorage if not there
+                if (!storedUserData) {
+                    setStoredUserData(authUser);
+                }
+                setIsLoading(false);
+                return;
             }
-            setUserData(authUser);
+
+            // Fetch full user data from API to ensure we have name, lastname, etc.
+            try {
+                const user = await getUserRequest();
+                setUser(user);
+                // setStoredUserData will be triggered by the sync effect
+            } catch (fetchError) {
+                console.error("Failed to fetch user details", fetchError);
+            }
         } catch (err: any) {
             setError(err.message || 'Failed to refresh professional data');
         } finally {
             setIsLoading(false);
         }
-    }, [token, authUser]);
+    }, [token, authUser, storedUserData, setUser, setStoredUserData]);
 
     useEffect(() => {
+        // Only run on mount or when token changes fundamentally
         refreshProfessional();
-    }, [refreshProfessional]);
+    }, [token]); // Only depend on token to avoid re-triggering when user data updates
 
-    // Sync userData when authUser changes in authStore
+    // Sync authUser to localStorage
     useEffect(() => {
-        setUserData(authUser);
-    }, [authUser]);
+        if (authUser) {
+            setStoredUserData(authUser);
+        }
+    }, [authUser, setStoredUserData]);
 
     return (
         <ProfessionalContext.Provider
             value={{
                 professional,
-                userData,
+                userData: authUser || storedUserData,
                 isLoading: isLoading,
                 error,
                 refreshProfessional,

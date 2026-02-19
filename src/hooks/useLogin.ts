@@ -4,23 +4,37 @@ import { useAuthStore } from '@/store/newAuthStore';
 import { LoginRequest } from '../types/api';
 
 export const useLoginMutation = () => {
-    const { setAuth, setUser } = useAuthStore();
 
     return useMutation<LoginResponse, Error, LoginRequest>({
-        mutationFn: (credentials) => loginRequest(credentials),
-        onSuccess: async (data) => {
-            // Update the store with the new token
-            setAuth({ token: data.access_token });
+        mutationFn: async (credentials) => {
+            const data = await loginRequest(credentials);
+            
+            // Set token immediately so it's available for getUserRequest
+            useAuthStore.getState().setAuth({ token: data.access_token });
             
             try {
-                // Fetch user info immediately after login
                 const user = await getUserRequest();
-                setUser(user);
+                
+                // Case insensitive check
+                if (user.role?.toLowerCase() === 'client') {
+                    useAuthStore.getState().logout();
+                    throw new Error('Access denied: Clients cannot login here');
+                }
+                
+                // Set user if valid
+                useAuthStore.getState().setUser(user);
+                return data;
             } catch (error) {
-                console.error("Failed to fetch user info after login", error);
+                // Ensure we logout if anything fails after login
+                useAuthStore.getState().logout();
+                throw error;
             }
         },
-        onError(error, variables, onMutateResult, context) {
+        onSuccess: () => {
+            // Token and user are already set in mutationFn
+            // This callback acts as a final confirmation or for side effects not critical to the flow
+        },
+        onError(error) {
             console.log(error);
         },
         

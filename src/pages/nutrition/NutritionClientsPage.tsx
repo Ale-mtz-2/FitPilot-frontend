@@ -69,7 +69,7 @@ export function NutritionClientsPage() {
     const filteredClients = useMemo(() => {
         return clients
             .filter(client =>
-                `${client.name}`.toLowerCase().includes(searchTerm.toLowerCase())
+                `${client.name} ${client.lastname}`.toLowerCase().includes(searchTerm.toLowerCase())
                 // (filterType === 'all' || client.role === filterType)
             )
             .sort((a, b) => {
@@ -97,13 +97,21 @@ export function NutritionClientsPage() {
         <div className="p-6 max-w-7xl mx-auto space-y-8">
             {/* Header Section */}
             <div className="space-y-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        {t('nutritionClients', 'Clientes')}
-                    </h1>
-                    <p className="text-gray-500 mt-1">
-                        Gestiona seguimiento de nutrición y entrenamiento de tus clientes.
-                    </p>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            {t('nutritionClients', 'Clientes')}
+                        </h1>
+                        <p className="text-gray-500 mt-1">
+                            Gestiona seguimiento de nutrición y entrenamiento de tus clientes.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => navigate('/nutrition/clients/new')}
+                        className="bg-nutrition-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-nutrition-700 transition-colors"
+                    >
+                        Registrar Cliente
+                    </button>
                 </div>
 
                 {/* Search Bar & Filter */}
@@ -125,11 +133,11 @@ export function NutritionClientsPage() {
                         <button
                             onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
                             className="flex items-center gap-2 px-4 py-2 hover:cursor-pointer bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:border-nutrition-500 focus:ring-1 focus:ring-nutrition-500 transition-colors shrink-0"
-                            title="Ordenar por fecha de próxima cita"
+                            title="Ordenar por fecha de próxima sesión"
                         >
                             <ArrowUpDown className="h-4 w-4 text-nutrition-600 " />
                             <span className="hidden sm:inline">
-                                {sortOrder === 'asc' ? 'Cita más próxima' : 'Cita más lejana'}
+                                {sortOrder === 'asc' ? 'Sesión más próxima' : 'Sesión más lejana'}
                             </span>
                         </button>
                     </div>
@@ -196,9 +204,11 @@ export function NutritionClientsPage() {
                             key={client.id}
                             image={`${client.profile_picture}`}
                             clientName={`${client.name}`}
+                            clientLastName={client.lastname ?? ''}
                             nextAppointment={client.nextAppointment || null}
                             serviceType={client.serviceType || ''}
-                            onAction={() => navigate(`/nutrition/clients/${client.id}`)}
+                            services={client.services}
+                            onAction={() => navigate(`/nutrition/clients/${client.id}/medical-history`)}
                         />
                     ))}
                 </div>

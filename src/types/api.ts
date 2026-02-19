@@ -18,8 +18,9 @@ export interface PaginatedResponse<T> {
 
 // Auth Types
 export interface LoginRequest {
-  email: string;
+  identifier: string;
   password: string;
+  app_type?: string;
 }
 
 export interface LoginResponse {
@@ -58,6 +59,9 @@ export interface User {
   id: string;
   email: string;
   full_name: string;
+  name?: string;
+  lastname?: string;
+  phone?: string;
   role: 'admin' | 'trainer' | 'client';
   preferred_language: Language;
   is_active: boolean;

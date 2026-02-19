@@ -14,13 +14,16 @@ import {
     ChevronRight,
     ExternalLink,
     CheckCircle,
-    Play
+    Play,
+    Apple,
+    Dumbbell
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/newAuthStore';
 import { useProfessionalClients } from '@/features/professional-clients/queries';
 import { useProfessional } from '@/contexts/ProfessionalContext';
 import { useGetAppointments } from '@/features/appointments/queries';
+import { DraftsSection } from './components/DraftsSection';
 
 interface Appointment {
     id: number;
@@ -29,6 +32,7 @@ interface Appointment {
     clientAvatar: string;
     date: Date;
     time: string;
+    type?: 'NUTRITION' | 'TRAINING' | 'BOTH';
     title?: string;
     meeting_link?: string;
 }
@@ -57,6 +61,7 @@ export function NutritionDashboardPage() {
             clientAvatar: client?.profile_picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(client?.name || 'U')}&background=random`,
             date: scheduledDate,
             time: format(scheduledDate, 'HH:mm'),
+            type: apiApp.type,
             title: apiApp.title,
             meeting_link: apiApp.meeting_link
         };
@@ -112,7 +117,7 @@ export function NutritionDashboardPage() {
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                    { label: 'Citas Hoy', value: todayAppointments.length, color: 'text-nutrition-600', bg: 'bg-nutrition-50', icon: CalendarIcon },
+                    { label: 'Sesiones Hoy', value: todayAppointments.length, color: 'text-nutrition-600', bg: 'bg-nutrition-50', icon: CalendarIcon },
                     { label: 'Mañana', value: tomorrowAppointments.length, color: 'text-blue-600', bg: 'bg-blue-50', icon: Clock },
                     { label: 'Clientes Activos', value: realClients?.length || 0, color: 'text-emerald-600', bg: 'bg-emerald-50', icon: User },
                 ].map((stat, i) => (
@@ -134,7 +139,11 @@ export function NutritionDashboardPage() {
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Main Content (Appointments) */}
+                <div className="lg:col-span-2 space-y-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Today's Appointments */}
                 <section className="space-y-4">
                     <div className="flex items-center justify-between px-2">
@@ -154,7 +163,7 @@ export function NutritionDashboardPage() {
                             ))
                         ) : (
                             <div className="bg-gray-50/50 border border-dashed border-gray-200 rounded-2xl p-8 text-center text-gray-500">
-                                No tienes citas agendadas para hoy.
+                                No tienes sesiones agendadas para hoy.
                             </div>
                         )}
                     </div>
@@ -179,13 +188,20 @@ export function NutritionDashboardPage() {
                             ))
                         ) : (
                             <div className="bg-gray-50/50 border border-dashed border-gray-200 rounded-2xl p-8 text-center text-gray-500">
-                                No hay citas para mañana todavía.
+                                No hay sesiones para mañana todavía.
                             </div>
                         )}
                     </div>
                 </section>
+                </div>
             </div>
-        </div>
+
+            {/* Sidebar (Drafts & potentially other widgets) */}
+            <div className="space-y-6">
+                 <DraftsSection />
+            </div>
+         </div>
+       </div>
     );
 }
 
@@ -215,9 +231,24 @@ function AppointmentListItem({ appt }: { appt: Appointment }) {
                             {appt.time}
                         </span>
                     </div>
-                    <p className="text-sm text-gray-500 truncate">
-                        {appt.title || 'Consulta Nutricional'}
-                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-sm text-gray-500 truncate flex-1">
+                            {appt.title || 'Consulta'}
+                        </p>
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-100">
+                            {appt.type === 'NUTRITION' && <Apple className="w-3 h-3 text-emerald-500" />}
+                            {appt.type === 'TRAINING' && <Dumbbell className="w-3 h-3 text-orange-500" />}
+                            {appt.type === 'BOTH' && (
+                                <div className="flex items-center -space-x-1">
+                                    <Apple className="w-3 h-3 text-emerald-500" />
+                                    <Dumbbell className="w-3 h-3 text-orange-500" />
+                                </div>
+                            )}
+                            <span className="text-[10px] font-bold text-gray-400">
+                                {appt.type === 'BOTH' ? 'MIXTA' : appt.type || 'NUTRITION'}
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -226,7 +257,7 @@ function AppointmentListItem({ appt }: { appt: Appointment }) {
                         className="opacity-0 group-hover:opacity-100 px-4 py-2 bg-nutrition-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-nutrition-100 hover:bg-nutrition-700 transition-all flex items-center gap-2"
                     >
                         <Play className="w-3 h-3 fill-current" />
-                        Iniciar cita
+                        Iniciar sesión
                     </Link>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {appt.meeting_link && (

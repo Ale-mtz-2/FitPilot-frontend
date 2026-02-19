@@ -294,7 +294,7 @@ export function NutritionClientDetailPage() {
                                 <Calendar className="w-5 h-5" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-bold text-gray-900">Detalles de la Cita</h2>
+                                <h2 className="text-lg font-bold text-gray-900">Detalles de la Sesión</h2>
                                 <p className="text-sm text-gray-500">{selectedAppointment.date}</p>
                             </div>
                         </div>
@@ -420,7 +420,7 @@ export function NutritionClientDetailPage() {
                  {client.nextAppointment && (
                      <div className="px-4 py-2 bg-nutrition-50 text-nutrition-700 rounded-xl text-sm font-medium flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
-                        Próxima cita: {new Date(client.nextAppointment).toLocaleDateString()}
+                        Próxima sesión: {new Date(client.nextAppointment).toLocaleDateString()}
                      </div>
                  )}
                  <button className="px-5 py-2 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200">
@@ -516,7 +516,7 @@ export function NutritionClientDetailPage() {
                                 <ArrowLeft className="w-4 h-4 rotate-180 text-gray-400 group-hover:text-nutrition-500 transition-colors" />
                             </button>
                             <button className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors flex justify-between items-center group">
-                                Ver historial de citas
+                                Ver historial de sesiones
                                 <ArrowLeft className="w-4 h-4 rotate-180 text-gray-400 group-hover:text-nutrition-500 transition-colors" />
                             </button>
                             <button className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors flex justify-between items-center group">
@@ -649,7 +649,7 @@ export function NutritionClientDetailPage() {
                             <History className="w-6 h-6" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-gray-900">Historial de Citas</h2>
+                            <h2 className="text-xl font-bold text-gray-900">Historial de Sesiones</h2>
                             <p className="text-sm text-gray-500">Registro de consultas anteriores</p>
                         </div>
                     </div>

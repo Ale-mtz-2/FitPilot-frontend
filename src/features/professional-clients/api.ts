@@ -39,4 +39,9 @@ export const updateAvailableSlot = async (id: number, slotData: Partial<IAvailab
     return data;
 };
 
+
+
 // client metrics
+export const assignMenusToClient = async (clientId: number, menuIds: number[]): Promise<void> => {
+    await client.post(`/v1/professional-clients/${clientId}/assigned-menus`, { menu_ids: menuIds });
+};

@@ -1,5 +1,6 @@
-import { InputHTMLAttributes, forwardRef } from 'react';
+import { InputHTMLAttributes, forwardRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -9,7 +10,10 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helperText, icon, className = '', ...props }, ref) => {
+  ({ label, error, helperText, icon, className = '', type, ...props }, ref) => {
+    const [showPassword, setShowPassword] = useState(false);
+    const isPassword = type === 'password';
+
     return (
       <div className="w-full">
         {label && (
@@ -26,6 +30,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
           <input
             ref={ref}
+            type={isPassword ? (showPassword ? 'text' : 'password') : type}
             className={`
               block w-full rounded-xl border border-gray-200 bg-white/80
               shadow-sm shadow-gray-100
@@ -36,7 +41,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               disabled:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60
               placeholder:text-gray-400
               ${icon ? 'pl-11' : 'px-4'}
-              ${!icon ? 'pr-4' : 'pr-4'}
+              ${isPassword ? 'pr-11' : 'pr-4'}
               py-2.5
               ${error
                 ? 'border-red-400 focus:border-red-400 focus:ring-red-500/20 focus:shadow-red-100'
@@ -46,9 +51,24 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             `}
             {...props}
           />
+          
+          {isPassword && (
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+            >
+              {showPassword ? (
+                <EyeOff className="w-5 h-5" />
+              ) : (
+                <Eye className="w-5 h-5" />
+              )}
+            </button>
+          )}
+
           {/* Focus indicator line */}
           <motion.div
-            className="absolute bottom-0 left-1/2 h-0.5 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+            className="absolute bottom-0 left-1/2 h-0.5 bg-linear-to-r from-blue-500 to-blue-600 rounded-full"
             initial={{ width: 0, x: '-50%' }}
             whileFocus={{ width: '100%' }}
           />
@@ -82,3 +102,4 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 );
 
 Input.displayName = 'Input';
+
