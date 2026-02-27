@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, AlertCircle, User, Briefcase, Mail, Phone, Calendar, Edit2, X, Save, Shield, LogOut, Loader2 } from 'lucide-react';
+import { CheckCircle, AlertCircle, User, Briefcase, Mail, Phone, Calendar, Edit2, X, Save, Shield, LogOut, Loader2, ChevronDown, Monitor, Clock3, Globe } from 'lucide-react';
 import { useAvailableSlots, useInsertAvailableSlot, useUpdateAvailableSlot } from '@/features/professional-clients/queries';
 import { IAvailableSlots } from '@/features/professional-clients/types';
 import { useProfessional } from '@/contexts/ProfessionalContext';
 import { AvailableSlot } from '@/components/profile/availableSlot';
 import { ProfileAvatarUploader } from '@/components/profile/ProfileAvatarUploader';
+import { Modal } from '@/components/common/Modal';
 import { useAuthStore } from '@/store/newAuthStore';
 import { useUser, useUpdateProfilePicture, useUpdateUser } from '@/features/users/queries';
 import { useAuthSessions, useRevokeAuthSession, useLogoutAllAuthSessions } from '@/features/auth/queries';
@@ -53,6 +54,22 @@ const SESSION_FIELD_ORDER = [
     'current',
     'isCurrent',
 ];
+
+const SESSION_DETAILS_HIDDEN_FIELDS = new Set([
+    'id',
+    'session_id',
+    'sessionId',
+    'created_at',
+    'createdAt',
+    'expires_at',
+    'expiresAt',
+    'updated_at',
+    'updatedAt',
+    'is_revoked',
+    'isRevoked',
+    'revoked_at',
+    'revokedAt',
+]);
 
 const formatSessionKey = (key: string) => {
     return key
@@ -114,7 +131,13 @@ const getSessionTitle = (session: AuthSession) => {
 
 const getSessionEntries = (session: AuthSession) => {
     const orderedEntries = Object.entries(session)
-        .filter(([, value]) => value !== null && value !== undefined && value !== '')
+        .filter(([key, value]) => {
+            if (value === null || value === undefined || value === '') {
+                return false;
+            }
+
+            return !SESSION_DETAILS_HIDDEN_FIELDS.has(key);
+        })
         .sort(([keyA], [keyB]) => {
             const indexA = SESSION_FIELD_ORDER.indexOf(keyA);
             const indexB = SESSION_FIELD_ORDER.indexOf(keyB);
@@ -125,6 +148,32 @@ const getSessionEntries = (session: AuthSession) => {
 
     return orderedEntries;
 };
+
+const getSessionStringValue = (session: AuthSession, keys: string[]) => {
+    for (const key of keys) {
+        const value = session[key];
+        if (typeof value === 'string' && value.trim()) {
+            return value;
+        }
+    }
+
+    return 'N/D';
+};
+
+const getSessionFormattedDate = (session: AuthSession, keys: string[]) => {
+    for (const key of keys) {
+        const value = session[key];
+        if (typeof value === 'string' && value.trim()) {
+            return formatSessionValue(key, value);
+        }
+    }
+
+    return 'N/D';
+};
+
+type SessionConfirmAction =
+    | { type: 'single'; session: AuthSession }
+    | { type: 'all' };
 
 export function ProfilePage() {
     const { professional } = useProfessional();
@@ -148,6 +197,8 @@ export function ProfilePage() {
     const [workSlots, setWorkSlots] = useState<IAvailableSlots[]>([]);
     const [savingSlots, setSavingSlots] = useState<number[]>([]);
     const [closingSessionIds, setClosingSessionIds] = useState<number[]>([]);
+    const [sessionConfirmAction, setSessionConfirmAction] = useState<SessionConfirmAction | null>(null);
+    const [expandedSessionId, setExpandedSessionId] = useState<number | null>(null);
     const [showToast, setShowToast] = useState(false);
     
     // Edit Mode State
@@ -171,7 +222,10 @@ export function ProfilePage() {
     const displayEmail = fetchedUser?.email || user?.email || '';
     const displayPhone = fetchedUser?.phone_number || user?.phone || '';
     const displayProfilePicture = fetchedUser?.profile_picture || null;
-    const sortedSessions = [...sessions].sort((a, b) => Number(isCurrentSession(b)) - Number(isCurrentSession(a)));
+    const sortedSessions = useMemo(
+        () => [...sessions].sort((a, b) => Number(isCurrentSession(b)) - Number(isCurrentSession(a))),
+        [sessions]
+    );
 
     // Initialize form data when user data is available
     useEffect(() => {
@@ -213,6 +267,22 @@ export function ProfilePage() {
             })));
         }
     }, [slots, isLoadingSlots]);
+
+    useEffect(() => {
+        if (sortedSessions.length === 0) {
+            setExpandedSessionId(null);
+            return;
+        }
+
+        setExpandedSessionId((previousValue) => {
+            if (previousValue && sortedSessions.some((session) => session.id === previousValue)) {
+                return previousValue;
+            }
+
+            const currentSession = sortedSessions.find((session) => isCurrentSession(session));
+            return currentSession?.id ?? sortedSessions[0].id;
+        });
+    }, [sortedSessions]);
 
     const handleToggleDay = async (index: number) => {
         if (!professionalId) return;
@@ -319,37 +389,57 @@ export function ProfilePage() {
         await updateProfilePictureMutation.mutateAsync(profilePicture);
     };
 
-    const handleCloseSession = async (session: AuthSession) => {
-        const isCurrent = isCurrentSession(session);
-        const confirmMessage = isCurrent
-            ? 'Vas a cerrar tu sesión actual. ¿Deseas continuar?'
-            : '¿Deseas cerrar esta sesión?';
+    const handleCloseSession = (session: AuthSession) => {
+        setSessionConfirmAction({ type: 'single', session });
+    };
 
-        if (!window.confirm(confirmMessage)) {
+    const handleCloseAllSessions = () => {
+        setSessionConfirmAction({ type: 'all' });
+    };
+
+    const isConfirmingSessionAction = sessionConfirmAction?.type === 'single'
+        ? closingSessionIds.includes(sessionConfirmAction.session.id)
+        : Boolean(sessionConfirmAction?.type === 'all' && logoutAllSessionsMutation.isPending);
+
+    const closeSessionConfirmModal = () => {
+        if (isConfirmingSessionAction) {
             return;
         }
 
-        setClosingSessionIds((prev) => [...prev, session.id]);
-
-        try {
-            await revokeSessionMutation.mutateAsync(session.id);
-        } catch (error) {
-            console.error('Failed to revoke session:', error);
-        } finally {
-            setClosingSessionIds((prev) => prev.filter((id) => id !== session.id));
-        }
+        setSessionConfirmAction(null);
     };
 
-    const handleCloseAllSessions = async () => {
-        if (!window.confirm('¿Deseas cerrar todas las sesiones activas?')) {
+    const handleConfirmSessionAction = async () => {
+        if (!sessionConfirmAction) {
+            return;
+        }
+
+        if (sessionConfirmAction.type === 'single') {
+            const sessionId = sessionConfirmAction.session.id;
+            setClosingSessionIds((prev) => (prev.includes(sessionId) ? prev : [...prev, sessionId]));
+
+            try {
+                await revokeSessionMutation.mutateAsync(sessionId);
+                setSessionConfirmAction(null);
+            } catch (error) {
+                console.error('Failed to revoke session:', error);
+            } finally {
+                setClosingSessionIds((prev) => prev.filter((id) => id !== sessionId));
+            }
+
             return;
         }
 
         try {
             await logoutAllSessionsMutation.mutateAsync();
+            setSessionConfirmAction(null);
         } catch (error) {
             console.error('Failed to logout all sessions:', error);
         }
+    };
+
+    const toggleSessionExpand = (sessionId: number) => {
+        setExpandedSessionId((previousValue) => (previousValue === sessionId ? null : sessionId));
     };
 
     return (
@@ -730,57 +820,203 @@ export function ProfilePage() {
                                 <p className="text-gray-500 font-medium">No hay sesiones activas para mostrar.</p>
                             </div>
                         ) : (
-                            sortedSessions.map((session) => {
-                                const currentSession = isCurrentSession(session);
-                                const isClosing = closingSessionIds.includes(session.id);
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                {sortedSessions.map((session) => {
+                                    const currentSession = isCurrentSession(session);
+                                    const isClosing = closingSessionIds.includes(session.id);
+                                    const isExpanded = expandedSessionId === session.id;
+                                    const ipAddress = getSessionStringValue(session, ['ip_address']);
+                                    const location = getSessionStringValue(session, ['location']);
+                                    const networkLabel =
+                                        ipAddress !== 'N/D' && location !== 'N/D'
+                                            ? `${ipAddress} - ${location}`
+                                            : ipAddress !== 'N/D'
+                                                ? ipAddress
+                                                : location;
+                                    const createdAt = getSessionFormattedDate(session, ['created_at', 'last_used_at', 'last_activity_at']);
+                                    const expiresAt = getSessionFormattedDate(session, ['expires_at']);
 
-                                return (
-                                    <div key={session.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                            <div>
-                                                <p className="font-semibold text-gray-900">{getSessionTitle(session)}</p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-xs text-gray-500">Sesión #{session.id}</span>
-                                                    {currentSession && (
-                                                        <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
-                                                            Sesión actual
-                                                        </span>
+                                    return (
+                                        <motion.article
+                                            key={session.id}
+                                            layout
+                                            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                                            className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden"
+                                        >
+                                            <div className="p-5 sm:p-6">
+                                                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 md:gap-4 items-start">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleSessionExpand(session.id)}
+                                                        aria-expanded={isExpanded}
+                                                        aria-controls={`session-details-${session.id}`}
+                                                        className="text-left rounded-2xl border border-transparent hover:border-gray-200 hover:bg-gray-50/60 transition-all p-2 -m-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-nutrition-500/40"
+                                                    >
+                                                        <div className="flex items-start sm:items-center gap-3">
+                                                            <span className="shrink-0 rounded-xl border border-gray-200 bg-gray-50 p-2">
+                                                                <Monitor className="w-4 h-4 text-gray-600" />
+                                                            </span>
+
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="font-semibold text-gray-900 leading-snug break-words">
+                                                                    {getSessionTitle(session)}
+                                                                </p>
+                                                                <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                                                                        Activa
+                                                                    </span>
+                                                                    {currentSession && (
+                                                                        <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">
+                                                                            Sesión actual
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            <motion.span
+                                                                animate={{ rotate: isExpanded ? 180 : 0 }}
+                                                                transition={{ duration: 0.26, ease: [0.32, 0.72, 0, 1] }}
+                                                                className="text-gray-400 self-center shrink-0"
+                                                            >
+                                                                <ChevronDown className="w-5 h-5" />
+                                                            </motion.span>
+                                                        </div>
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => handleCloseSession(session)}
+                                                        disabled={isClosing || logoutAllSessionsMutation.isPending}
+                                                        className="inline-flex w-full md:w-auto shrink-0 items-center justify-center gap-2 px-4 py-2 rounded-xl border border-red-100 bg-red-50 text-red-700 text-sm font-medium whitespace-nowrap hover:bg-red-100 disabled:opacity-50 transition-colors"
+                                                    >
+                                                        {isClosing ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <LogOut className="w-4 h-4" />
+                                                        )}
+                                                        Cerrar sesión
+                                                    </button>
+                                                </div>
+
+                                                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                                                    <div className="inline-flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-sm text-gray-600">
+                                                        <Globe className="w-4 h-4 text-gray-400 shrink-0" />
+                                                        <span className="break-all">{networkLabel}</span>
+                                                    </div>
+                                                    <div className="inline-flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-sm text-gray-600">
+                                                        <Clock3 className="w-4 h-4 text-gray-400 shrink-0" />
+                                                        <span>Creada: {createdAt}</span>
+                                                    </div>
+                                                    <div className="inline-flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-sm text-gray-600">
+                                                        <Clock3 className="w-4 h-4 text-gray-400 shrink-0" />
+                                                        <span>Expira: {expiresAt}</span>
+                                                    </div>
+                                                </div>
+
+                                                <AnimatePresence initial={false}>
+                                                    {isExpanded && (
+                                                        <motion.div
+                                                            id={`session-details-${session.id}`}
+                                                            initial={{ height: 0, opacity: 0 }}
+                                                            animate={{ height: 'auto', opacity: 1 }}
+                                                            exit={{ height: 0, opacity: 0 }}
+                                                            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                                                            className="overflow-hidden"
+                                                        >
+                                                            <motion.div
+                                                                initial={{ y: -8, opacity: 0 }}
+                                                                animate={{ y: 0, opacity: 1 }}
+                                                                exit={{ y: -6, opacity: 0 }}
+                                                                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                                                                className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3"
+                                                            >
+                                                                {getSessionEntries(session).map(([key, value]) => (
+                                                                    <div key={`${session.id}-${key}`} className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+                                                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                                                                            {formatSessionKey(key)}
+                                                                        </p>
+                                                                        <p className="text-sm text-gray-700 mt-1 break-all">
+                                                                            {formatSessionValue(key, value)}
+                                                                        </p>
+                                                                    </div>
+                                                                ))}
+                                                            </motion.div>
+                                                        </motion.div>
                                                     )}
-                                                </div>
+                                                </AnimatePresence>
                                             </div>
-                                            <button
-                                                onClick={() => handleCloseSession(session)}
-                                                disabled={isClosing || logoutAllSessionsMutation.isPending}
-                                                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-red-100 bg-red-50 text-red-700 text-sm font-medium hover:bg-red-100 disabled:opacity-50 transition-colors"
-                                            >
-                                                {isClosing ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                ) : (
-                                                    <LogOut className="w-4 h-4" />
-                                                )}
-                                                Cerrar sesión
-                                            </button>
-                                        </div>
-
-                                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            {getSessionEntries(session).map(([key, value]) => (
-                                                <div key={`${session.id}-${key}`} className="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
-                                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                                                        {formatSessionKey(key)}
-                                                    </p>
-                                                    <p className="text-sm text-gray-700 mt-1 break-all">
-                                                        {formatSessionValue(key, value)}
-                                                    </p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })
+                                        </motion.article>
+                                    );
+                                })}
+                            </div>
                         )}
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <Modal
+                isOpen={Boolean(sessionConfirmAction)}
+                onClose={closeSessionConfirmModal}
+                title={sessionConfirmAction?.type === 'all' ? 'Cerrar todas las sesiones' : 'Cerrar sesión'}
+                size="md"
+            >
+                <div className="space-y-6 pt-2">
+                    <div className="flex flex-col items-center text-center gap-4">
+                        <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center">
+                            <LogOut className="w-7 h-7 text-red-600" />
+                        </div>
+
+                        <div className="space-y-2 max-w-sm">
+                            {sessionConfirmAction?.type === 'all' ? (
+                                <p className="text-sm text-gray-600">
+                                    Vas a cerrar todas las sesiones activas de tu cuenta en otros dispositivos.
+                                </p>
+                            ) : (
+                                <p className="text-sm text-gray-600">
+                                    {sessionConfirmAction && isCurrentSession(sessionConfirmAction.session)
+                                        ? 'Vas a cerrar tu sesión actual. Tendrás que iniciar sesión nuevamente.'
+                                        : '¿Deseas cerrar esta sesión?'}
+                                </p>
+                            )}
+
+                            {sessionConfirmAction?.type === 'single' && (
+                                <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-left">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Sesión</p>
+                                    <p className="text-sm text-gray-700 mt-1 break-words">
+                                        {getSessionTitle(sessionConfirmAction.session)}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                        <button
+                            onClick={closeSessionConfirmModal}
+                            disabled={isConfirmingSessionAction}
+                            className="px-5 py-2.5 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-all uppercase tracking-wide disabled:opacity-50"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={handleConfirmSessionAction}
+                            disabled={isConfirmingSessionAction}
+                            className="px-6 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-lg shadow-red-500/20 transition-all hover:-translate-y-0.5 active:translate-y-0 uppercase tracking-wide text-xs inline-flex items-center gap-2"
+                        >
+                            {isConfirmingSessionAction ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Procesando...
+                                </>
+                            ) : (
+                                <>
+                                    <LogOut className="w-4 h-4" />
+                                    {sessionConfirmAction?.type === 'all' ? 'Cerrar todas' : 'Cerrar sesión'}
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Success Toast */}
             <AnimatePresence>
