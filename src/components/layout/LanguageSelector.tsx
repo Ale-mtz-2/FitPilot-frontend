@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlobeAltIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { useLanguageStore, Language } from '../../store/languageStore';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore } from '../../store/newAuthStore';
 import { useTranslation } from 'react-i18next';
 
 interface LanguageOption {
@@ -19,7 +19,7 @@ const languages: LanguageOption[] = [
 export function LanguageSelector() {
   const { t } = useTranslation();
   const { language, setLanguage } = useLanguageStore();
-  const { isAuthenticated, updatePreferredLanguage } = useAuthStore();
+  const { setLanguage: setAuthLanguage } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -36,21 +36,10 @@ export function LanguageSelector() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLanguageChange = async (lang: Language) => {
+  const handleLanguageChange = (lang: Language) => {
     setIsOpen(false);
-
-    // If authenticated, persist to backend (which also updates local state)
-    if (isAuthenticated) {
-      try {
-        await updatePreferredLanguage(lang);
-      } catch {
-        // Fallback to local-only change if backend fails
-        setLanguage(lang);
-      }
-    } else {
-      // Not authenticated, just update locally
-      setLanguage(lang);
-    }
+    setLanguage(lang);
+    setAuthLanguage(lang);
   };
 
   return (

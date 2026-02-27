@@ -19,9 +19,20 @@ const shouldSkipRefreshFlow = (url?: string): boolean => {
   );
 };
 
+const resolveTrainingApiBaseURL = (): string => {
+  const configuredBase = import.meta.env.VITE_TRAINING_API_URL as string | undefined;
+
+  if (!configuredBase) {
+    return '/api';
+  }
+
+  const normalized = configuredBase.replace(/\/+$/, '');
+  return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+};
+
 // Create axios instance with base configuration
 const api: AxiosInstance = axios.create({
-  baseURL: '/api', // Proxied by Vite to http://localhost:8000/api
+  baseURL: resolveTrainingApiBaseURL(),
   headers: {
     'Content-Type': 'application/json',
   },
