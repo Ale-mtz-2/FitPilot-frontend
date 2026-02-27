@@ -1,18 +1,26 @@
-import { apiClient } from './api';
+// import { apiClient } from './api';
 import type { LoginRequest, LoginResponse, RegisterRequest, User, UserUpdate } from '../types/api';
-
-const AUTH_TOKEN_KEY = 'access_token';
+import { useAuthStore } from '../store/newAuthStore';
 
 export const authService = {
   /**
    * Login with email and password
    */
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    const response = await apiClient.post<LoginResponse>('/auth/login', credentials);
+    // const response = await apiClient.post<LoginResponse>('/auth/login', credentials);
+    console.log('BYPASS: Logging in with mock credentials', credentials);
+    
+    // LoginResponse only has tokens, User is fetched separately
+    const mockResponse: LoginResponse = {
+      access_token: 'mock-token-12345',
+      token_type: 'bearer'
+    };
 
-    // Store token in localStorage
+    const response = mockResponse;
+
+    // Keep access token only in memory store
     if (response.access_token) {
-      localStorage.setItem(AUTH_TOKEN_KEY, response.access_token);
+      useAuthStore.getState().setAuth({ token: response.access_token });
     }
 
     return response;
@@ -22,49 +30,89 @@ export const authService = {
    * Register a new user
    */
   async register(data: RegisterRequest): Promise<User> {
-    return apiClient.post<User>('/auth/register', data);
+    // return apiClient.post<User>('/auth/register', data);
+    console.log('BYPASS: Registering mock user');
+    return {
+        id: 'mock-user-id',
+        email: data.email,
+        full_name: data.full_name,
+        role: data.role || 'client',
+        preferred_language: 'en',
+        is_active: true,
+        email_verified: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    };
   },
 
   /**
    * Get current user profile
    */
   async getCurrentUser(): Promise<User> {
-    return apiClient.get<User>('/auth/me');
+    // return apiClient.get<User>('/auth/me');
+    console.log('BYPASS: Getting mock user');
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            resolve({
+                id: 'mock-user-id',
+                email: 'mock@example.com',
+                full_name: 'Mock User',
+                role: 'client',
+                preferred_language: 'en',
+                is_active: true,
+                email_verified: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            });
+        }, 500);
+    });
   },
 
   /**
    * Update current user profile
    */
   async updateUser(data: UserUpdate): Promise<User> {
-    return apiClient.patch<User>('/auth/me', data);
+    // return apiClient.patch<User>('/auth/me', data);
+      console.log('BYPASS: Updating mock user');
+      return {
+          id: 'mock-user-id',
+          email: data.email || 'mock@example.com',
+          full_name: data.full_name || 'Mock User',
+          role: 'client',
+          preferred_language: data.preferred_language || 'en',
+          is_active: true,
+          email_verified: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+      };
   },
 
   /**
    * Logout - clear token and redirect
    */
   logout(): void {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    window.location.href = '/login';
+    useAuthStore.getState().logout();
+    window.location.href = '/auth/login';
   },
 
   /**
    * Get stored token
    */
   getToken(): string | null {
-    return localStorage.getItem(AUTH_TOKEN_KEY);
+    return useAuthStore.getState().token;
   },
 
   /**
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
-    return !!this.getToken();
+    return useAuthStore.getState().isAuthenticated;
   },
 
   /**
    * Set token manually (useful for testing)
    */
   setToken(token: string): void {
-    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    useAuthStore.getState().setAuth({ token });
   },
 };

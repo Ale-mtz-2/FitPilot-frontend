@@ -30,7 +30,7 @@ export const QuickConfigPanel: React.FC<QuickConfigPanelProps> = ({
 
   const handleEditClientData = () => {
     if (selectedClientId) {
-      navigate(`/clients/${selectedClientId}/interview`);
+      navigate(`/nutrition/clients/${selectedClientId}/medical-history`);
     }
   };
 

@@ -1,10 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { Card } from '../components/common/Card';
-import { useAuthStore } from '../store/authStore';
 import {
   BeakerIcon,
   CalendarDaysIcon,
-  UsersIcon,
   ChartBarIcon,
 } from '@heroicons/react/24/outline';
 
@@ -12,7 +10,7 @@ type StatKey = 'totalExercises' | 'activeMesocycles' | 'clients' | 'completionRa
 
 export function DashboardPage() {
   const { t } = useTranslation('common');
-  const { user } = useAuthStore();
+  // const { user } = useAuthStore();
 
   const stats: { key: StatKey; value: string; icon: typeof BeakerIcon; color: string }[] = [
     {
@@ -27,12 +25,12 @@ export function DashboardPage() {
       icon: CalendarDaysIcon,
       color: 'bg-green-500',
     },
-    {
-      key: 'clients',
-      value: user?.role === 'trainer' ? '5' : '-',
-      icon: UsersIcon,
-      color: 'bg-purple-500',
-    },
+    // {
+    //   key: 'clients',
+    //   value: user?.role === 'trainer' ? '5' : '-',
+    //   icon: UsersIcon,
+    //   color: 'bg-purple-500',
+    // },
     {
       key: 'completionRate',
       value: '87%',
@@ -44,9 +42,9 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          {/* <h1 className="text-3xl font-bold text-gray-900">
             {t('dashboard.welcome', { name: user?.full_name })}
-          </h1>
+          </h1> */}
           <p className="mt-2 text-gray-600">
             {t('dashboard.subtitle')}
           </p>
@@ -84,12 +82,12 @@ export function DashboardPage() {
               <CalendarDaysIcon className="h-8 w-8 mx-auto text-gray-400 mb-2" />
               <p className="font-medium text-gray-700">{t('dashboard.createMesocycle')}</p>
             </button>
-            {user?.role === 'trainer' && (
+            {/* {user?.role === 'trainer' && (
               <button className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 hover:bg-primary-50 transition-colors text-center">
                 <UsersIcon className="h-8 w-8 mx-auto text-gray-400 mb-2" />
                 <p className="font-medium text-gray-700">{t('dashboard.manageClients')}</p>
               </button>
-            )}
+            )} */}
           </div>
         </Card>
 

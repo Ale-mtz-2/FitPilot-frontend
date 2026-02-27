@@ -9,8 +9,8 @@ import { DndWrapper } from '../components/mesocycle/DndWrapper';
 import { MicrocycleKanbanBoard } from '../components/mesocycle/MicrocycleKanbanBoard';
 import { ExerciseConfigData } from '../components/mesocycle/ExerciseConfigModal';
 import { useMesocycleStore } from '../store/mesocycleStore';
-import { useAuthStore } from '../store/authStore';
-import { useClientStore } from '../store/clientStore';
+import { useAuthStore } from '../store/newAuthStore';
+import { useProfessionalClients } from '../features/professional-clients/queries';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -34,19 +34,20 @@ const macrocycleSchema = z.object({
   objective: z.string().min(1, 'Objective is required'),
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().min(1, 'End date is required'),
-  client_id: z.string().min(1, 'Client is required'),
+  client_id: z.string().optional(),
   status: z.enum(['draft', 'active', 'completed', 'archived']).optional(),
 });
 
 type MacrocycleFormData = z.infer<typeof macrocycleSchema>;
 
 export function MesocycleEditorPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
-  const isNew = id === 'new';
+  const isNew = !id;
 
   const { user } = useAuthStore();
-  const { selectedClient, fetchClientById } = useClientStore();
+  const professionalId = user?.id || '';
+  const { data: nutritionClients = [] } = useProfessionalClients(professionalId);
   const {
     currentMacrocycle,
     mesocycles,
@@ -99,22 +100,14 @@ export function MesocycleEditorPage() {
     handleSubmit,
     formState: { errors },
     reset,
-    setValue,
   } = useForm<MacrocycleFormData>({
     resolver: zodResolver(macrocycleSchema),
     defaultValues: {
       status: 'draft',
-      client_id: selectedClient?.id || user?.id || '',
+      client_id: '',
       objective: 'hypertrophy',
     },
   });
-
-  // Auto-update client_id when selectedClient changes
-  useEffect(() => {
-    if (isNew && selectedClient?.id) {
-      setValue('client_id', selectedClient.id);
-    }
-  }, [selectedClient, isNew, setValue]);
 
   useEffect(() => {
     if (!isNew && id) {
@@ -131,38 +124,37 @@ export function MesocycleEditorPage() {
         objective: currentMacrocycle.objective || 'hypertrophy',
         start_date: format(new Date(currentMacrocycle.start_date), 'yyyy-MM-dd'),
         end_date: format(new Date(currentMacrocycle.end_date), 'yyyy-MM-dd'),
-        client_id: currentMacrocycle.client_id || user?.id || '',
+        client_id: currentMacrocycle.client_id || '',
         status: currentMacrocycle.status,
       });
     }
-  }, [currentMacrocycle, isNew, reset, user?.id]);
-
-  // Auto-load client when macrocycle has client_id but selectedClient is not set
-  useEffect(() => {
-    if (currentMacrocycle?.client_id && selectedClient?.id !== currentMacrocycle.client_id) {
-      fetchClientById(currentMacrocycle.client_id).catch(() => {
-        // Silently fail - client info is not critical
-      });
-    }
-  }, [currentMacrocycle?.client_id, selectedClient?.id, fetchClientById]);
+  }, [currentMacrocycle, isNew, reset]);
 
   const onSubmit = async (data: MacrocycleFormData) => {
     setIsSaving(true);
     try {
       if (isNew) {
+        const selectedNutritionClientId = (data.client_id || '').trim() || null;
         const createData = {
           name: data.name,
           description: data.description,
           objective: data.objective,
           start_date: data.start_date,
           end_date: data.end_date,
-          client_id: data.client_id,
+          client_id: selectedNutritionClientId,
         };
         const macrocycle = await createMacrocycle(createData);
         toast.success('Training program created successfully');
-        navigate(`/mesocycles/${macrocycle.id}`);
+        navigate(`/training/programs/${macrocycle.id}`);
       } else if (id) {
-        await updateMacrocycle(id, data);
+        await updateMacrocycle(id, {
+          name: data.name,
+          description: data.description,
+          objective: data.objective,
+          start_date: data.start_date,
+          end_date: data.end_date,
+          status: data.status,
+        });
         toast.success('Training program updated successfully');
       }
     } catch (error: any) {
@@ -734,7 +726,7 @@ export function MesocycleEditorPage() {
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
-              onClick={() => navigate(selectedClient ? `/clients/${selectedClient.id}/programs` : '/mesocycles')}
+              onClick={() => navigate('/training/programs')}
             >
               <ArrowLeftIcon className="h-5 w-5" />
             </Button>
@@ -797,21 +789,22 @@ export function MesocycleEditorPage() {
                 </select>
               </div>
 
-              {/* Hidden client_id field */}
-              <input type="hidden" {...register('client_id')} />
-
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Cliente</label>
-                {selectedClient ? (
-                  <div className="px-3 py-1.5 bg-primary-50 border border-primary-200 rounded-lg">
-                    <p className="text-sm font-medium text-primary-900 truncate">{selectedClient.full_name}</p>
-                    <p className="text-xs text-primary-600 truncate">{selectedClient.email}</p>
-                  </div>
-                ) : (
-                  <div className="px-3 py-1.5 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
-                    <p className="text-xs text-yellow-800">Sin cliente</p>
-                  </div>
-                )}
+                <select
+                  {...register('client_id')}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">Plantilla (sin cliente)</option>
+                  {nutritionClients.map((client) => (
+                    <option key={client.id} value={String(client.id)}>
+                      {`${client.name || ''} ${client.lastname || ''}`.trim() || client.email || `Cliente ${client.id}`}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Si seleccionas un cliente, el programa quedará asignado. Si no, se guarda como plantilla reusable.
+                </p>
               </div>
             </div>
 

@@ -2,16 +2,26 @@
   "locale": "en",
   "appName": "FitPilot",
   "appTagline": "Workout Management",
-
   "nav": {
     "dashboard": "Dashboard",
+    "training": "Training",
     "clients": "Clients",
     "exercises": "Exercises",
     "templates": "Templates",
     "aiGenerator": "AI Generator",
-    "settings": "Settings"
+    "settings": "Settings",
+    "nutrition": "Nutrition",
+    "nutritionClients": "Clients",
+    "nutritionCreateDiet": "Create New Diet",
+    "nutritionMealBuilder": "Meal Builder",
+    "clientsMenus": "Client Menus",
+    "clientPlans": "Client Plans"
   },
-
+  "mealPlans": {
+    "overview": "Overview",
+    "builder": "Builder",
+    "templates": "Templates"
+  },
   "clientNav": {
     "summary": "Summary",
     "interview": "Interview",
@@ -19,13 +29,11 @@
     "metrics": "Metrics",
     "diet": "Diet"
   },
-
   "roles": {
     "admin": "Administrator",
     "trainer": "Trainer",
     "client": "Client"
   },
-
   "buttons": {
     "save": "Save",
     "cancel": "Cancel",
@@ -48,7 +56,6 @@
     "view": "View",
     "viewDetails": "View Details"
   },
-
   "status": {
     "active": "Active",
     "inactive": "Inactive",
@@ -59,7 +66,6 @@
     "archived": "Archived",
     "verified": "Verified"
   },
-
   "pagination": {
     "showing": "Showing",
     "of": "of",
@@ -67,13 +73,11 @@
     "page": "Page",
     "perPage": "Per page"
   },
-
   "confirmation": {
     "deleteTitle": "Confirm Deletion",
     "deleteMessage": "Are you sure you want to delete this item? This action cannot be undone.",
     "unsavedChanges": "You have unsaved changes. Are you sure you want to leave?"
   },
-
   "messages": {
     "loading": "Loading...",
     "saving": "Saving...",
@@ -82,7 +86,6 @@
     "noResults": "No results found",
     "noData": "No data available"
   },
-
   "time": {
     "seconds": "seconds",
     "minutes": "minutes",
@@ -90,13 +93,11 @@
     "days": "days",
     "weeks": "weeks"
   },
-
   "language": {
     "es": "Spanish",
     "en": "English",
     "select": "Select language"
   },
-
   "dashboard": {
     "welcome": "Welcome back, {{name}}!",
     "subtitle": "Here's what's happening with your workouts today.",
@@ -114,7 +115,6 @@
     "noActivity": "No recent activity to display",
     "startCreating": "Start creating mesocycles to see your activity here"
   },
-
   "metrics": {
     "title": "Microcycle Metrics",
     "week": "Week",

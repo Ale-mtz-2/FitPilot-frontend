@@ -18,13 +18,32 @@ export interface PaginatedResponse<T> {
 
 // Auth Types
 export interface LoginRequest {
-  email: string;
+  identifier: string;
   password: string;
+  app_type?: string;
 }
 
 export interface LoginResponse {
   access_token: string;
   token_type: string;
+}
+
+export interface JWTPayload {
+  sub: string;
+  email: string;
+  role: string;
+  professional_role?: string[];
+  exp: number;
+  iat: number;
+  [key: string]: any;
+}
+
+export interface ProfessionalContextType {
+  professional: JWTPayload | null;
+  userData: User | null;
+  isLoading: boolean;
+  error: string | null;
+  refreshProfessional: () => Promise<void>;
 }
 
 export interface RegisterRequest {
@@ -39,13 +58,25 @@ export type Language = 'es' | 'en';
 export interface User {
   id: string;
   email: string;
-  full_name: string;
-  role: 'admin' | 'trainer' | 'client';
-  preferred_language: Language;
-  is_active: boolean;
-  email_verified: boolean;
-  created_at: string;
-  updated_at: string;
+  full_name?: string;
+  name?: string;
+  lastname?: string | null;
+  username?: string | null;
+  phone?: string;
+  phone_number?: string | null;
+  role: string;
+  preferred_language?: Language;
+  is_active?: boolean;
+  email_verified?: boolean;
+  is_phone_verified?: boolean;
+  onboarding_status?: string | null;
+  profile_picture?: string | null;
+  professional_role?: string[];
+  genre?: string | null;
+  gender?: string | null;
+  date_of_birth?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface UserUpdate {

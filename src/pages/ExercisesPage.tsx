@@ -3,11 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { ExerciseCard, ExerciseFilters, ExerciseModal, FilterState } from '../components/exercises';
+import { ExerciseFilters, ExerciseModal, FilterState } from '../components/exercises';
 import { exercisesService } from '../services/exercises';
-import { useAuthStore } from '../store/authStore';
 import { Exercise } from '../types';
-import { PlusIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 const initialFilters: FilterState = {
   search: '',
@@ -27,11 +26,11 @@ export function ExercisesPage() {
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const selectedExercise: Exercise | null = null;
   const [deleteConfirm, setDeleteConfirm] = useState<Exercise | null>(null);
 
-  const { user } = useAuthStore();
-  const canModify = user?.role === 'trainer' || user?.role === 'admin';
+  // const { user } = useAuthStore();
+  // const canModify = user?.role === 'trainer' || user?.role === 'admin';
 
   const fetchExercises = useCallback(async () => {
     setIsLoading(true);
@@ -73,20 +72,6 @@ export function ExercisesPage() {
     setFilters(initialFilters);
   };
 
-  const handleAddExercise = () => {
-    setSelectedExercise(null);
-    setIsModalOpen(true);
-  };
-
-  const handleEditExercise = (exercise: Exercise) => {
-    setSelectedExercise(exercise);
-    setIsModalOpen(true);
-  };
-
-  const handleDeleteClick = (exercise: Exercise) => {
-    setDeleteConfirm(exercise);
-  };
-
   const handleDeleteConfirm = async () => {
     if (!deleteConfirm) return;
 
@@ -125,12 +110,12 @@ export function ExercisesPage() {
             </p>
           </div>
 
-          {canModify && (
+          {/* {canModify && (
             <Button onClick={handleAddExercise} variant="primary">
               <PlusIcon className="h-5 w-5 mr-2" />
               {t('exercises:newExercise')}
             </Button>
-          )}
+          )} */}
         </div>
 
         {/* Filters */}
@@ -168,18 +153,18 @@ export function ExercisesPage() {
                   ? t('exercises:adjustFilters')
                   : t('exercises:addFirst')}
               </p>
-              {canModify && !filters.search && !filters.muscle_id && !filters.muscle_category && !filters.type && (
+              {/* {canModify && !filters.search && !filters.muscle_id && !filters.muscle_category && !filters.type && (
                 <Button onClick={handleAddExercise} variant="primary" className="mt-4">
                   <PlusIcon className="h-5 w-5 mr-2" />
                   {t('exercises:addExercise')}
                 </Button>
-              )}
+              )} */}
             </div>
           </Card>
         ) : (
           /* Exercise Grid */
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-            {exercises.map((exercise) => (
+            {/* {exercises.map((exercise) => (
               <ExerciseCard
                 key={exercise.id}
                 exercise={exercise}
@@ -187,7 +172,7 @@ export function ExercisesPage() {
                 onDelete={canModify ? handleDeleteClick : undefined}
                 canModify={canModify}
               />
-            ))}
+            ))} */}
           </div>
         )}
       </div>

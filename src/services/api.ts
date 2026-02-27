@@ -1,21 +1,53 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import type { ApiError } from '../types/api';
+import { useAuthStore } from '@/store/newAuthStore';
+import { refreshAccessToken } from '@/api/api.client';
+
+type RetryableRequestConfig = AxiosRequestConfig & {
+  _retry?: boolean;
+};
+
+const shouldSkipRefreshFlow = (url?: string): boolean => {
+  if (!url) return false;
+
+  return (
+    url.includes('/auth/refresh') ||
+    url.includes('/auth/login') ||
+    url.includes('/auth/send-verification') ||
+    url.includes('/auth/verify-phone') ||
+    url.includes('/auth/signup')
+  );
+};
+
+const resolveTrainingApiBaseURL = (): string => {
+  const configuredBase = import.meta.env.VITE_TRAINING_API_URL as string | undefined;
+
+  if (!configuredBase) {
+    return '/api';
+  }
+
+  const normalized = configuredBase.replace(/\/+$/, '');
+  return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+};
 
 // Create axios instance with base configuration
 const api: AxiosInstance = axios.create({
-  baseURL: '/api', // Proxied by Vite to http://localhost:8000/api
+  baseURL: resolveTrainingApiBaseURL(),
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 30000, // 30 seconds
+  withCredentials: true,
 });
 
 // Request interceptor - Add JWT token to requests
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    const token = useAuthStore.getState().token;
+    config.withCredentials = true;
 
-    if (token && config.headers) {
+    if (token) {
+      config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
     }
 
@@ -31,15 +63,39 @@ api.interceptors.response.use(
   (response: AxiosResponse) => {
     return response;
   },
-  (error: AxiosError<ApiError>) => {
+  async (error: AxiosError<ApiError>) => {
+    const originalRequest = error.config as RetryableRequestConfig | undefined;
+
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !shouldSkipRefreshFlow(originalRequest.url)
+    ) {
+      originalRequest._retry = true;
+
+      try {
+        const refreshedToken = await refreshAccessToken(api.defaults.baseURL || '/api');
+        originalRequest.headers = originalRequest.headers ?? {};
+        originalRequest.headers.Authorization = `Bearer ${refreshedToken}`;
+        originalRequest.withCredentials = true;
+        return api(originalRequest);
+      } catch {
+        useAuthStore.getState().clearAuth();
+
+        if (window.location.pathname !== '/auth/login') {
+          window.location.href = '/auth/login';
+        }
+      }
+    }
+
     // Handle specific error cases
     if (error.response?.status === 401) {
-      // Unauthorized - clear auth and redirect to login
-      localStorage.removeItem('access_token');
+      useAuthStore.getState().clearAuth();
 
       // Only redirect if not already on login page
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      if (window.location.pathname !== '/auth/login') {
+        window.location.href = '/auth/login';
       }
     }
 

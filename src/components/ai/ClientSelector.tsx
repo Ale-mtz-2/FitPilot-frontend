@@ -83,7 +83,7 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
 
   const handleGoToInterview = () => {
     if (selectedClientId) {
-      navigate(`/clients/${selectedClientId}/interview`);
+      navigate(`/nutrition/clients/${selectedClientId}/medical-history`);
     }
   };
 

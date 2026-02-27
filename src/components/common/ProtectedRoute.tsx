@@ -1,48 +1,69 @@
-import { ReactNode, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
-import { useAuthStore } from '../../store/authStore';
-import { LoadingSpinner } from './LoadingSpinner';
+import { ReactNode } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuthStore } from '../../store/newAuthStore';
+import { useProfessional } from '@/contexts/ProfessionalContext';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: 'admin' | 'trainer' | 'client';
 }
 
-export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { isAuthenticated, user, isLoading, loadUser } = useAuthStore();
+export function ProtectedRoute({ children }: ProtectedRouteProps) {
+  const { isAuthenticated, user, authChecked } = useAuthStore();
+  const { userData, isLoading } = useProfessional();
+  const location = useLocation();
+  const activeUser = user ?? userData;
+  const onboardingStatus = activeUser?.onboarding_status;
+  const needsOnboarding = Boolean(
+    activeUser && onboardingStatus && onboardingStatus.toLowerCase() !== 'completed'
+  );
+  const isOnboardingPath = location.pathname.startsWith('/onboarding');
 
-  useEffect(() => {
-    // If authenticated but no user loaded, load user
-    if (isAuthenticated && !user && !isLoading) {
-      loadUser();
-    }
-  }, [isAuthenticated, user, isLoading, loadUser]);
-
-  // Show loading while checking auth
-  if (isLoading) {
+  if (!authChecked) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+          <span className="text-sm font-medium text-gray-600">Cargando sesión...</span>
+        </div>
       </div>
     );
   }
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/auth/login" replace />;
   }
 
-  // Check role if required
-  if (requiredRole && user?.role !== requiredRole) {
+  if (isAuthenticated && !activeUser && isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600">You don't have permission to access this page.</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+          <span className="text-sm font-medium text-gray-600">Cargando sesión...</span>
         </div>
       </div>
     );
   }
+
+  if (needsOnboarding && !isOnboardingPath) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  if (!needsOnboarding && isOnboardingPath) {
+    return <Navigate to="/" replace />;
+  }
+
+  // Check role if required
+  // if (requiredRole && user?.role !== requiredRole) {
+  //   return (
+  //     <div className="min-h-screen flex items-center justify-center">
+  //       <div className="text-center">
+  //         <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
+  //         <p className="text-gray-600">You don't have permission to access this page.</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return <>{children}</>;
 }

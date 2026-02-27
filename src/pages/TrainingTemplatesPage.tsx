@@ -9,8 +9,7 @@ import {
   CalendarDaysIcon,
   PlusIcon,
   PencilIcon,
-  TrashIcon,
-  SparklesIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 import { es, enUS } from 'date-fns/locale';
@@ -26,9 +25,7 @@ export function TrainingTemplatesPage() {
     deleteMacrocycle,
   } = useMesocycleStore();
 
-  // Filter only templates (macrocycles without a client assigned)
-  const allMacrocycles = Array.isArray(macrocycles) ? macrocycles : [];
-  const templates = allMacrocycles.filter((m) => m.client_id === null);
+  const programs = Array.isArray(macrocycles) ? macrocycles : [];
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const dateLocale = i18n.language === 'es' ? es : enUS;
@@ -86,26 +83,17 @@ export function TrainingTemplatesPage() {
               {t('training:templates.subtitle')}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => navigate('/ai-generator')}
-            >
-              <SparklesIcon className="h-5 w-5 mr-2" />
-              {t('common:nav.aiGenerator')}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => navigate('/templates/new')}
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              {t('training:templates.new')}
-            </Button>
-          </div>
+          <Button
+            variant="primary"
+            onClick={() => navigate('/training/programs/new')}
+          >
+            <PlusIcon className="h-5 w-5 mr-2" />
+            {t('training:templates.new')}
+          </Button>
         </div>
 
-        {/* Templates Grid */}
-        {templates.length === 0 ? (
+        {/* Programs Grid */}
+        {programs.length === 0 ? (
           <Card>
             <div className="text-center py-12 text-gray-500">
               <CalendarDaysIcon className="h-16 w-16 mx-auto mb-4 text-gray-300" />
@@ -115,27 +103,18 @@ export function TrainingTemplatesPage() {
               <p className="max-w-md mx-auto mb-6">
                 {t('training:templates.description')}
               </p>
-              <div className="flex items-center justify-center gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={() => navigate('/ai-generator')}
-                >
-                  <SparklesIcon className="h-5 w-5 mr-2" />
-                  {t('common:nav.aiGenerator')}
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => navigate('/templates/new')}
-                >
-                  <PlusIcon className="h-5 w-5 mr-2" />
-                  {t('training:templates.createFirst')}
-                </Button>
-              </div>
+              <Button
+                variant="primary"
+                onClick={() => navigate('/training/programs/new')}
+              >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                {t('training:templates.createFirst')}
+              </Button>
             </div>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {templates.map((macrocycle) => (
+            {programs.map((macrocycle) => (
               <Card key={macrocycle.id} padding="none">
                 <div className="p-6">
                   {/* Header */}
@@ -154,6 +133,13 @@ export function TrainingTemplatesPage() {
                         </span>
                         <span className="text-xs text-gray-500">
                           {t(`training:objectives.${macrocycle.objective}`, macrocycle.objective)}
+                        </span>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                            macrocycle.client_id ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {macrocycle.client_id ? 'Asignado' : 'Plantilla'}
                         </span>
                       </div>
                     </div>
@@ -188,7 +174,7 @@ export function TrainingTemplatesPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => navigate(`/templates/${macrocycle.id}`)}
+                      onClick={() => navigate(`/training/programs/${macrocycle.id}`)}
                       className="flex-1"
                     >
                       <PencilIcon className="h-4 w-4 mr-1" />

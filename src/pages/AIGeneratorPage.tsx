@@ -9,7 +9,7 @@ import {
   BeakerIcon,
 } from '@heroicons/react/24/outline';
 import { useAIStore } from '../store/aiStore';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore } from '../store/newAuthStore';
 import {
   ModeSelector,
   ClientSelector,
@@ -187,7 +187,7 @@ export const AIGeneratorPage: React.FC = () => {
           }
           const macrocycleId = await saveWorkout();
           toast.success(t('ai:messages.programSaved'));
-          navigate(`/mesocycles/${macrocycleId}`);
+          navigate(`/training/programs/${macrocycleId}`);
         } catch {
           // Error handled in store, go back to questionnaire
           setPageStep('questionnaire');
@@ -276,7 +276,7 @@ export const AIGeneratorPage: React.FC = () => {
       case 'quick-config':
         // If came from URL with client_id, go back to clients page
         if (clientIdFromUrl) {
-          navigate(`/clients/${clientIdFromUrl}/programs`);
+          navigate('/training/programs');
         } else {
           setPageStep('client-selection');
         }
@@ -288,7 +288,7 @@ export const AIGeneratorPage: React.FC = () => {
           // If we were showing missing fields, go back to quick-config or client-selection
           setMissingFields([]);
           if (clientIdFromUrl) {
-            navigate(`/clients/${clientIdFromUrl}/programs`);
+            navigate('/training/programs');
           } else {
             setPageStep('client-selection');
           }

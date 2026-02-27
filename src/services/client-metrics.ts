@@ -1,6 +1,6 @@
 import { apiClient } from './api';
 
-export type MetricType = 'weight' | 'body_fat' | 'chest' | 'waist' | 'hips' | 'arms' | 'thighs';
+export type MetricType = 'weight' | 'body_fat' | 'muscle_mass' | 'chest' | 'waist' | 'hips' | 'arm_left' | 'arm_right' | 'thigh_left' | 'thigh_right' | 'calf_left' | 'calf_right' | 'visceral_fat' | 'arms' | 'thighs' | 'calves' | 'systolic' | 'diastolic' | 'glucose' | 'blood_pressure';
 
 export interface ClientMetric {
   id: string;

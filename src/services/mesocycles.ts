@@ -9,7 +9,7 @@ export interface MacrocycleCreateData {
   objective: string;
   start_date: string; // ISO date format (YYYY-MM-DD)
   end_date: string; // ISO date format (YYYY-MM-DD)
-  client_id: string;
+  client_id?: string | null;
 }
 
 export interface MacrocycleUpdateData {
