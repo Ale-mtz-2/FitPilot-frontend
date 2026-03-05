@@ -3,6 +3,21 @@ import { getAvailableSlots, getProfessionalClients, insertAvailableSlot, updateA
 import { toast } from "react-hot-toast";
 import { IAvailableSlots, IProfessionalClient } from "@/features/professional-clients/types";
 
+const resolveErrorMessage = (error: unknown, fallback: string): string => {
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+        const message = (error as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim()) {
+            return message;
+        }
+    }
+
+    return fallback;
+};
+
 /**
  * Custom hook to fetch professional clients using TanStack Query.
  * @param professionalId The ID of the professional to fetch clients for.
@@ -64,8 +79,8 @@ export const useAssignMenusToClient = () => {
         onSuccess: () => {
             toast.success('Menús asignados correctamente');
         },
-        onError: () => {
-            toast.error('Error al asignar los menús');
+        onError: (error) => {
+            toast.error(resolveErrorMessage(error, 'Error al asignar los menús'));
         }
     });
 };

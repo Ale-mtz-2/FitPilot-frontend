@@ -49,7 +49,7 @@ export const ProfessionalProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
     }, [authChecked, authUser, storedUserData, token, setUser]);
 
-    const refreshProfessional = useCallback(async () => {
+    const refreshProfessional = useCallback(async (forceRefresh = false) => {
         if (!authChecked) {
             setIsLoading(true);
             return;
@@ -70,7 +70,7 @@ export const ProfessionalProvider: React.FC<{ children: React.ReactNode }> = ({ 
             
             // Avoid redundant fetch if we already have the user data in authStore or localStorage
             // and it seems to belong to the same professional/user
-            if (authUser && authUser.id === decoded?.sub) {
+            if (!forceRefresh && authUser && authUser.id === decoded?.sub) {
                 // If it's already in the store, we don't necessarily need to fetch again immediately
                 // but we might want to sync it to localStorage if not there
                 if (!storedUserData) {
@@ -111,13 +111,24 @@ export const ProfessionalProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
     }, [authUser, setStoredUserData]);
 
+    const activeUser = authUser || storedUserData;
+    const hasSubscriptionAccess =
+        activeUser?.has_active_subscription === true ||
+        activeUser?.subscription_vigency?.is_vigent === true;
+    const requiresSubscriptionSelection = Boolean(
+        activeUser &&
+        String(activeUser.role ?? '').toUpperCase() === 'PROFESSIONAL' &&
+        !hasSubscriptionAccess
+    );
+
     return (
         <ProfessionalContext.Provider
             value={{
                 professional,
-                userData: authUser || storedUserData,
+                userData: activeUser,
                 isLoading: isLoading,
                 error,
+                requiresSubscriptionSelection,
                 refreshProfessional,
             }}
         >

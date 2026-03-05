@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, AlertCircle, User, Briefcase, Mail, Phone, Calendar, Edit2, X, Save, Shield, LogOut, Loader2, ChevronDown, Monitor, Clock3, Globe } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useAvailableSlots, useInsertAvailableSlot, useUpdateAvailableSlot } from '@/features/professional-clients/queries';
 import { IAvailableSlots } from '@/features/professional-clients/types';
 import { useProfessional } from '@/contexts/ProfessionalContext';
@@ -8,9 +10,12 @@ import { AvailableSlot } from '@/components/profile/availableSlot';
 import { ProfileAvatarUploader } from '@/components/profile/ProfileAvatarUploader';
 import { Modal } from '@/components/common/Modal';
 import { useAuthStore } from '@/store/newAuthStore';
+import { useCancelSubscription } from '@/features/subscriptions/queries';
 import { useUser, useUpdateProfilePicture, useUpdateUser } from '@/features/users/queries';
 import { useAuthSessions, useRevokeAuthSession, useLogoutAllAuthSessions } from '@/features/auth/queries';
 import { AuthSession } from '@/features/auth/types';
+import { CancelSubscriptionModal } from '@/components/profile/CancelSubscriptionModal';
+
 
 const DAYS = [
     { id: 1, label: 'Lunes' },
@@ -171,20 +176,49 @@ const getSessionFormattedDate = (session: AuthSession, keys: string[]) => {
     return 'N/D';
 };
 
+const getApiErrorMessage = (error: unknown) => {
+    if (
+        error &&
+        typeof error === 'object' &&
+        'response' in error &&
+        error.response &&
+        typeof error.response === 'object' &&
+        'data' in error.response &&
+        error.response.data &&
+        typeof error.response.data === 'object'
+    ) {
+        const responseData = error.response.data as {
+            message?: string;
+            error?: string;
+            detail?: string;
+        };
+
+        return responseData.message || responseData.error || responseData.detail || null;
+    }
+
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+
+    return null;
+};
+
 type SessionConfirmAction =
     | { type: 'single'; session: AuthSession }
     | { type: 'all' };
 
 export function ProfilePage() {
-    const { professional } = useProfessional();
+    const navigate = useNavigate();
+    const { professional, userData, refreshProfessional } = useProfessional();
     const { user } = useAuthStore();
     const professionalId = professional?.sub;
     
     // Fetch full user data to get name, lastname, phone, etc.
-    const userId = user?.id ? parseInt(user.id) : undefined;
+    const userId = user?.id ? Number(user.id) : undefined;
     const { data: fetchedUser, isLoading: isLoadingUser } = useUser(userId);
     const updateUserMutation = useUpdateUser();
     const updateProfilePictureMutation = useUpdateProfilePicture();
+    const cancelSubscriptionMutation = useCancelSubscription();
 
     const { data: slots, isLoading: isLoadingSlots } = useAvailableSlots(professionalId || '');
     const insertMutation = useInsertAvailableSlot();
@@ -200,6 +234,10 @@ export function ProfilePage() {
     const [sessionConfirmAction, setSessionConfirmAction] = useState<SessionConfirmAction | null>(null);
     const [expandedSessionId, setExpandedSessionId] = useState<number | null>(null);
     const [showToast, setShowToast] = useState(false);
+    const [cancelModalState, setCancelModalState] = useState<{
+        isOpen: boolean;
+        mode: 'immediately' | 'period_end' | null;
+    }>({ isOpen: false, mode: null });
     
     // Edit Mode State
     const [isEditing, setIsEditing] = useState(false);
@@ -213,6 +251,7 @@ export function ProfilePage() {
     const isUpdatingUser = updateUserMutation.isPending;
     const isUploadingPicture = updateProfilePictureMutation.isPending;
     const isSyncingSessions = isFetchingSessions || revokeSessionMutation.isPending || logoutAllSessionsMutation.isPending;
+    const isCancellingSubscription = cancelSubscriptionMutation.isPending;
 
     // Derived user data - prioritize fetched data over auth store data
     // The API might return 'name' and 'lastname' separately, or a 'full_name'
@@ -222,6 +261,27 @@ export function ProfilePage() {
     const displayEmail = fetchedUser?.email || user?.email || '';
     const displayPhone = fetchedUser?.phone_number || user?.phone || '';
     const displayProfilePicture = fetchedUser?.profile_picture || null;
+    const subscriptionSource = userData || user;
+    const currentSubscription = subscriptionSource?.current_subscription ?? null;
+    const subscriptionVigency = subscriptionSource?.subscription_vigency ?? null;
+    const hasSubscriptionAccess =
+        subscriptionSource?.has_active_subscription === true ||
+        subscriptionVigency?.is_vigent === true;
+    const isCancellationScheduled = currentSubscription?.cancel_at_period_end === true;
+    const subscriptionPlanName =
+        typeof currentSubscription?.plan === 'string'
+            ? currentSubscription.plan
+            : currentSubscription?.plan && typeof currentSubscription.plan === 'object' && 'name' in currentSubscription.plan
+                ? String(currentSubscription.plan.name ?? '')
+                : currentSubscription?.name
+                    ? String(currentSubscription.name)
+                    : null;
+    const accessEndsAt =
+        subscriptionVigency?.end_at ??
+        currentSubscription?.current_period_end ??
+        currentSubscription?.trial_end ??
+        currentSubscription?.ended_at ??
+        null;
     const sortedSessions = useMemo(
         () => [...sessions].sort((a, b) => Number(isCurrentSession(b)) - Number(isCurrentSession(a))),
         [sessions]
@@ -387,6 +447,25 @@ export function ProfilePage() {
 
     const handleSaveProfilePicture = async (profilePicture: Blob) => {
         await updateProfilePictureMutation.mutateAsync(profilePicture);
+    };
+
+    const handleCancelSubscription = async (mode: 'immediately' | 'period_end') => {
+        try {
+            const response = await cancelSubscriptionMutation.mutateAsync({ mode });
+            await refreshProfessional(true);
+            setCancelModalState({ isOpen: false, mode: null });
+            toast.success(
+                response.message ||
+                (mode === 'period_end'
+                    ? 'Tu suscripción se cancelará al terminar el periodo actual.'
+                    : 'Tu suscripción fue cancelada de inmediato.')
+            );
+        } catch (error) {
+            toast.error(
+                getApiErrorMessage(error) ||
+                'No se pudo actualizar el estado de la suscripción.'
+            );
+        }
     };
 
     const handleCloseSession = (session: AuthSession) => {
@@ -679,6 +758,7 @@ export function ProfilePage() {
                                         imageUrl={displayProfilePicture}
                                         onSave={handleSaveProfilePicture}
                                         isSaving={isUploadingPicture}
+                                        previewMode="overlay"
                                     />
                                     <h3 className="text-lg font-bold text-gray-900">{displayFirstName} {displayLastName}</h3>
                                     <span className="inline-flex mt-2 px-3 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-full border border-blue-100 uppercase tracking-wide">
@@ -691,6 +771,102 @@ export function ProfilePage() {
                                         </p>
                                     </div>
                                 </div>
+                             </div>
+
+                             <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">Suscripción</h3>
+                                        <p className="text-sm text-gray-500 mt-1">
+                                            Administra tu acceso y la cancelación de tu plan.
+                                        </p>
+                                    </div>
+                                    <span
+                                        className={`inline-flex px-3 py-1 text-[11px] font-bold rounded-full border uppercase tracking-wide ${
+                                            hasSubscriptionAccess
+                                                ? isCancellationScheduled
+                                                    ? 'bg-amber-50 text-amber-700 border-amber-100'
+                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                                : 'bg-gray-100 text-gray-600 border-gray-200'
+                                        }`}
+                                    >
+                                        {hasSubscriptionAccess
+                                            ? isCancellationScheduled
+                                                ? 'Termina al final'
+                                                : 'Activa'
+                                            : 'Sin acceso'}
+                                    </span>
+                                </div>
+
+                                <div className="mt-5 space-y-3">
+                                    <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                                            Plan
+                                        </p>
+                                        <p className="mt-1 text-sm font-semibold text-gray-900">
+                                            {subscriptionPlanName || 'Sin suscripción registrada'}
+                                        </p>
+                                    </div>
+
+                                    {accessEndsAt && (
+                                        <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+                                            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                                                Acceso hasta
+                                            </p>
+                                            <p className="mt-1 text-sm font-semibold text-gray-900">
+                                                {new Date(accessEndsAt).toLocaleString('es-MX')}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {isCancellationScheduled && hasSubscriptionAccess && (
+                                        <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex gap-2">
+                                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                                            <span>
+                                                Tu suscripción ya está programada para terminar automáticamente cuando cierre el periodo actual.
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {currentSubscription && hasSubscriptionAccess ? (
+                                    <div className="mt-5 space-y-3">
+                                        {!isCancellationScheduled && (
+                                            <button
+                                                onClick={() => setCancelModalState({ isOpen: true, mode: 'period_end' })}
+                                                disabled={isCancellingSubscription}
+                                                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-amber-200 bg-amber-50 text-amber-800 text-sm font-semibold hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                                            >
+                                                {isCancellingSubscription && cancelModalState.mode === 'period_end' ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <Calendar className="w-4 h-4" />
+                                                )}
+                                                Cancelar al terminar periodo
+                                            </button>
+                                        )}
+
+                                        <button
+                                            onClick={() => setCancelModalState({ isOpen: true, mode: 'immediately' })}
+                                            disabled={isCancellingSubscription}
+                                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-red-200 bg-red-50 text-red-700 text-sm font-semibold hover:bg-red-100 disabled:opacity-50 transition-colors"
+                                        >
+                                            {isCancellingSubscription && cancelModalState.mode === 'immediately' ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <X className="w-4 h-4" />
+                                            )}
+                                            Cancelar inmediatamente
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => navigate('/subscriptions/plans')}
+                                        className="mt-5 w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+                                    >
+                                        Ver planes disponibles
+                                    </button>
+                                )}
                              </div>
                          </div>
                             </>
@@ -1037,7 +1213,18 @@ export function ProfilePage() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <CancelSubscriptionModal
+                isOpen={cancelModalState.isOpen}
+                onClose={() => setCancelModalState({ isOpen: false, mode: null })}
+                onConfirm={() => {
+                    if (cancelModalState.mode) {
+                        handleCancelSubscription(cancelModalState.mode);
+                    }
+                }}
+                isCancelling={isCancellingSubscription}
+                cancelMode={cancelModalState.mode}
+            />
         </div>
     );
 }
-

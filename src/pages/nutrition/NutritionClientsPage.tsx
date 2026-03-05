@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ClientCard } from '@/components/nutrition/ClientCard';
-import { ArrowUpDown, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowUpDown, Search, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/newAuthStore';
+import { useProfessional } from '@/contexts/ProfessionalContext';
 import { useProfessionalClients } from '@/features/professional-clients/queries';
 import { useGetAppointments } from '@/features/appointments/queries';
 import { IProfessionalClient } from '@/features/professional-clients/types';
+import { resolvePlanAccess } from '@/features/subscriptions/planAccess';
 import { isAfter, parseISO } from 'date-fns';
 
 // Mapear los campos de la API a lo que espera la UI
@@ -19,17 +21,21 @@ export function NutritionClientsPage() {
     const { t } = useTranslation('common');
     const navigate = useNavigate();
     const { user } = useAuthStore();
+    const { userData } = useProfessional();
     const [searchTerm, setSearchTerm] = useState('');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     const [filterType, setFilterType] = useState<string>('all');
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
-    // Hardcoded ID for now as per user request "/v1/professional-clients/professional/7"
-    // but ideally we use user?.id. Using '7' for demonstration.
-    const professionalId = user?.id || '7';
+    const accessUser = userData ?? user ?? null;
+    const planAccess = resolvePlanAccess(accessUser);
+    const professionalId = accessUser?.id ? Number(accessUser.id) : '';
     const { data: rawClients, isLoading: isLoadingClients, isError: isErrorClients, error: errorClients } = useProfessionalClients(professionalId);
     const { data: appointments, isLoading: isLoadingAppointments, isError: isErrorAppointments, error: errorAppointments } = useGetAppointments(professionalId);
+    const clientCount = rawClients?.length ?? 0;
+    const hasClientLimit = planAccess.maxClients !== null;
+    const hasReachedClientLimit = hasClientLimit && clientCount >= Number(planAccess.maxClients);
 
     const isLoading = isLoadingClients || isLoadingAppointments;
     const isError = isErrorClients || isErrorAppointments;
@@ -106,13 +112,55 @@ export function NutritionClientsPage() {
                             Gestiona seguimiento de nutrición y entrenamiento de tus clientes.
                         </p>
                     </div>
-                    <button
-                        onClick={() => navigate('/nutrition/clients/new')}
-                        className="bg-nutrition-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-nutrition-700 transition-colors"
-                    >
-                        Registrar Cliente
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => navigate('/nutrition/clients/new')}
+                            disabled={hasReachedClientLimit}
+                            title={
+                                hasReachedClientLimit
+                                    ? `Tu plan permite máximo ${planAccess.maxClients} clientes`
+                                    : undefined
+                            }
+                            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                                hasReachedClientLimit
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                    : 'bg-nutrition-600 text-white hover:bg-nutrition-700'
+                            }`}
+                        >
+                            Registrar Cliente
+                        </button>
+                        {hasReachedClientLimit && (
+                            <button
+                                onClick={() => navigate('/subscriptions/plans')}
+                                className="px-4 py-2 rounded-xl text-sm font-medium border border-nutrition-200 text-nutrition-700 bg-nutrition-50 hover:bg-nutrition-100 transition-colors"
+                            >
+                                Mejorar plan
+                            </button>
+                        )}
+                    </div>
                 </div>
+
+                {hasReachedClientLimit && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-sm font-semibold text-amber-900">
+                                    Tu plan Starter permite hasta {planAccess.maxClients} clientes.
+                                </p>
+                                <p className="text-sm text-amber-800">
+                                    Para agregar más clientes, mejora tu plan desde la sección de suscripciones.
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => navigate('/subscriptions/plans')}
+                            className="px-4 py-2 rounded-xl text-sm font-semibold bg-white text-amber-900 border border-amber-200 hover:bg-amber-100 transition-colors"
+                        >
+                            Ver planes
+                        </button>
+                    </div>
+                )}
 
                 {/* Search Bar & Filter */}
                 <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">

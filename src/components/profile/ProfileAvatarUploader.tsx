@@ -20,6 +20,7 @@ interface ProfileAvatarUploaderProps {
     imageUrl?: string | null;
     onSave: (imageBlob: Blob) => Promise<void> | void;
     isSaving?: boolean;
+    previewMode?: 'modal' | 'overlay';
 }
 
 type CropRect = {
@@ -198,6 +199,7 @@ export function ProfileAvatarUploader({
     imageUrl,
     onSave,
     isSaving = false,
+    previewMode = 'modal',
 }: ProfileAvatarUploaderProps) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [displayImage, setDisplayImage] = useState<string | null>(imageUrl ?? null);
@@ -221,6 +223,19 @@ export function ProfileAvatarUploader({
             }
         };
     }, [draft]);
+
+    useEffect(() => {
+        if (!isPreviewOpen) return;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setIsPreviewOpen(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isPreviewOpen]);
 
     const initials = useMemo(() => getInitials(firstName, lastName), [firstName, lastName]);
     const isBusy = isSaving || isProcessing;
@@ -523,19 +538,48 @@ export function ProfileAvatarUploader({
                 )}
             </Modal>
 
-            <Modal
-                isOpen={isPreviewOpen}
-                onClose={() => setIsPreviewOpen(false)}
-                title="Foto de perfil"
-                size="sm"
-            >
-                <div className="flex items-center justify-center pt-4 pb-10">
-                    <div className="w-64 h-64 sm:w-76 sm:h-76 aspect-square rounded-4xl overflow-hidden shadow-[0_20px_40px_-15px_rgba(0,0,0,0.15)] ring-1 ring-gray-900/5 bg-linear-to-br from-blue-500 to-blue-600">
+            {previewMode === 'modal' ? (
+                <Modal
+                    isOpen={isPreviewOpen}
+                    onClose={() => setIsPreviewOpen(false)}
+                    title="Foto de perfil"
+                    size="sm"
+                >
+                    <div className="flex items-center justify-center pt-4 pb-10">
+                        <div className="w-64 h-64 sm:w-76 sm:h-76 aspect-square rounded-4xl overflow-hidden shadow-[0_20px_40px_-15px_rgba(0,0,0,0.15)] ring-1 ring-gray-900/5 bg-linear-to-br from-blue-500 to-blue-600">
+                            {displayImage ? (
+                                <img
+                                    src={displayImage}
+                                    alt="Foto de perfil ampliada"
+                                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-white text-6xl font-light">
+                                    {initials}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </Modal>
+            ) : null}
+
+            {previewMode === 'overlay' && isPreviewOpen ? (
+                <div
+                    className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-[2px] p-4"
+                    onClick={() => setIsPreviewOpen(false)}
+                    role="button"
+                    tabIndex={-1}
+                    aria-label="Cerrar vista previa de foto de perfil"
+                >
+                    <div
+                        className="w-52 h-52 sm:w-64 sm:h-64 md:w-72 md:h-72 aspect-square rounded-[1.75rem] overflow-hidden shadow-[0_35px_70px_-25px_rgba(0,0,0,0.6)] ring-1 ring-white/20 bg-linear-to-br from-blue-500 to-blue-600"
+                        onClick={() => setIsPreviewOpen(false)}
+                    >
                         {displayImage ? (
                             <img
                                 src={displayImage}
                                 alt="Foto de perfil ampliada"
-                                className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                className="w-full h-full object-cover"
                             />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-white text-6xl font-light">
@@ -544,7 +588,7 @@ export function ProfileAvatarUploader({
                         )}
                     </div>
                 </div>
-            </Modal>
+            ) : null}
         </div>
     );
 }
