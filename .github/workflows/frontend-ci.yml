@@ -107,7 +107,7 @@ jobs:
           VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GHCR_USER: ${{ github.repository_owner }}
-          APP_DIR: ${{ vars.VPS_FRONTEND_PATH || '/opt/Fitpilot-frontend' }}
+          APP_DIR: ${{ vars.VPS_FRONTEND_PATH || '/opt/FitPilot-frontend' }}
         run: |
           if [ "${GITHUB_REF_NAME}" = "main" ]; then
             FRONTEND_PORT="4000"
