@@ -2,17 +2,33 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useCreateUser, useValidatePhone } from '@/features/users/queries';
+import { useProfessionalClients } from '@/features/professional-clients/queries';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
-import { ChevronLeft, CheckCircle, Smartphone } from 'lucide-react';
+import { ChevronLeft, CheckCircle, Smartphone, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useProfessional } from '@/contexts/ProfessionalContext';
+import { resolvePlanAccess } from '@/features/subscriptions/planAccess';
 
 export function RegisterClientPage() {
     const navigate = useNavigate();
     const { mutateAsync: createUser, isPending } = useCreateUser();
-    const { professional } = useProfessional();
-    const professionalId = professional?.sub;
+    const { professional, userData } = useProfessional();
+    const accessUser = userData ?? null;
+    const professionalId = accessUser?.id
+        ? Number(accessUser.id)
+        : professional?.sub
+            ? Number(professional.sub)
+            : undefined;
+    const planAccess = resolvePlanAccess(accessUser);
+    const {
+        data: rawClients,
+        isLoading: isLoadingClients,
+        refetch: refetchClients,
+    } = useProfessionalClients(professionalId ?? '');
+    const clientCount = rawClients?.length ?? 0;
+    const hasClientLimit = planAccess.maxClients !== null;
+    const hasReachedClientLimit = hasClientLimit && clientCount >= Number(planAccess.maxClients);
     
     // Phone Verification Hooks
     const { mutateAsync: validatePhone, isPending: isValidatingPhone } = useValidatePhone();
@@ -61,10 +77,29 @@ export function RegisterClientPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (hasReachedClientLimit) {
+            toast.error(
+                `Tu plan Starter permite máximo ${planAccess.maxClients} clientes. Mejora tu plan para agregar más.`
+            );
+            return;
+        }
         
         if (!validateForm()) return;
 
         try {
+            if (hasClientLimit) {
+                const refreshedClients = await refetchClients();
+                const latestClientCount = refreshedClients.data?.length ?? clientCount;
+
+                if (latestClientCount >= Number(planAccess.maxClients)) {
+                    toast.error(
+                        `Tu plan Starter permite máximo ${planAccess.maxClients} clientes. Mejora tu plan para agregar más.`
+                    );
+                    return;
+                }
+            }
+
             await createUser({
                 ...formData,
                 role: 'CLIENT', // Hidden from user
@@ -101,6 +136,29 @@ export function RegisterClientPage() {
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {hasReachedClientLimit && (
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div className="flex items-start gap-3">
+                                <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-semibold text-amber-900">
+                                        Tu plan Starter ya alcanzó el máximo de {planAccess.maxClients} clientes.
+                                    </p>
+                                    <p className="text-sm text-amber-800">
+                                        Mejora tu plan para seguir agregando clientes.
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => navigate('/subscriptions/plans')}
+                            >
+                                Ver planes
+                            </Button>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <Input
                             label="Nombre"
@@ -177,7 +235,7 @@ export function RegisterClientPage() {
                             type="submit"
                             variant="primary"
                             isLoading={isPending}
-                            disabled={!isPhoneVerified || isPending}
+                            disabled={!isPhoneVerified || isPending || hasReachedClientLimit || isLoadingClients}
                             className="bg-gradient-to-r from-green-500 via-green-600 to-green-700 hover:from-green-600 hover:via-green-700 hover:to-green-800 shadow-green-500/25 focus:ring-green-500"
                         >
                             Registrar Cliente

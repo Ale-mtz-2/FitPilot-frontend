@@ -2,6 +2,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMenus, getMenuById, createMenu, updateMenu, deleteMenu, getMenuPool, swapDailyMenu, getMenuPoolCalendar, generateMenuAI, saveMenuDraft, updateMenuDraft, getDrafts, getDraftById } from './api';
 import { toast } from 'react-hot-toast';
 
+const resolveErrorMessage = (error: unknown, fallback: string): string => {
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+        const message = (error as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim()) {
+            return message;
+        }
+    }
+
+    return fallback;
+};
+
 export const useGetMenus = (professionalId?: number) => {
     return useQuery({
         queryKey: ['menus', professionalId],
@@ -45,8 +60,8 @@ export const useCreateMenu = () => {
             queryClient.invalidateQueries({ queryKey: ['menus-pool'] });
             toast.success('Menú creado correctamente');
         },
-        onError: () => {
-            toast.error('Error al crear el menú');
+        onError: (error) => {
+            toast.error(resolveErrorMessage(error, 'Error al crear el menú'));
         },
     });
 };
@@ -60,8 +75,8 @@ export const useUpdateMenu = () => {
             queryClient.invalidateQueries({ queryKey: ['menus-pool'] });
             toast.success('Menú actualizado correctamente');
         },
-        onError: () => {
-            toast.error('Error al actualizar el menú');
+        onError: (error) => {
+            toast.error(resolveErrorMessage(error, 'Error al actualizar el menú'));
         },
     });
 };
@@ -75,8 +90,8 @@ export const useDeleteMenu = () => {
             queryClient.invalidateQueries({ queryKey: ['menus-pool'] });
             toast.success('Menú eliminado correctamente');
         },
-        onError: () => {
-            toast.error('Error al eliminar el menú');
+        onError: (error) => {
+            toast.error(resolveErrorMessage(error, 'Error al eliminar el menú'));
         },
     });
 };
@@ -116,8 +131,8 @@ export const useGenerateMenuAI = () => {
         onSuccess: () => {
             toast.success('Solicitud enviada para generar menú con IA');
         },
-        onError: () => {
-            toast.error('Error al solicitar generación con IA');
+        onError: (error) => {
+            toast.error(resolveErrorMessage(error, 'Error al solicitar generación con IA'));
         },
     });
 };

@@ -1,6 +1,7 @@
 // import { nutritionApi } from "./nutrition.client";
 import { createClient } from '@/api/api.client';
 import { IAvailableSlots, IProfessionalClient } from './types';
+import { assertNutritionSubscriptionAccess } from '@/features/subscriptions/nutritionAccess';
 
 const client = createClient({ baseURL: import.meta.env.VITE_NUTRITION_API_URL });
 
@@ -43,5 +44,6 @@ export const updateAvailableSlot = async (id: number, slotData: Partial<IAvailab
 
 // client metrics
 export const assignMenusToClient = async (clientId: number, menuIds: number[]): Promise<void> => {
+    assertNutritionSubscriptionAccess();
     await client.post(`/v1/professional-clients/${clientId}/assigned-menus`, { menu_ids: menuIds });
 };

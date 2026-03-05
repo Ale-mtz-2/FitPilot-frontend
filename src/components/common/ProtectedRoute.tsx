@@ -2,21 +2,26 @@ import { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/newAuthStore';
 import { useProfessional } from '@/contexts/ProfessionalContext';
+import { ModuleAccess, resolvePlanAccess } from '@/features/subscriptions/planAccess';
 
 interface ProtectedRouteProps {
   children: ReactNode;
+  requiredAccess?: ModuleAccess;
 }
 
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requiredAccess }: ProtectedRouteProps) {
   const { isAuthenticated, user, authChecked } = useAuthStore();
-  const { userData, isLoading } = useProfessional();
+  const { userData, isLoading, requiresSubscriptionSelection } = useProfessional();
   const location = useLocation();
   const activeUser = user ?? userData;
+  const planAccess = resolvePlanAccess(activeUser ?? null);
   const onboardingStatus = activeUser?.onboarding_status;
   const needsOnboarding = Boolean(
     activeUser && onboardingStatus && onboardingStatus.toLowerCase() !== 'completed'
   );
   const isOnboardingPath = location.pathname.startsWith('/onboarding');
+  const isProfilePath = location.pathname.startsWith('/profile');
+  const isSubscriptionFlowPath = location.pathname.startsWith('/subscriptions/');
 
   if (!authChecked) {
     return (
@@ -51,6 +56,21 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!needsOnboarding && isOnboardingPath) {
     return <Navigate to="/" replace />;
+  }
+
+  if (requiresSubscriptionSelection && !isProfilePath && !isOnboardingPath && !isSubscriptionFlowPath) {
+    return <Navigate to="/subscriptions/plans" replace />;
+  }
+
+  if (requiredAccess && activeUser) {
+    const canAccessModule =
+      requiredAccess === 'nutrition'
+        ? planAccess.canAccessNutrition
+        : planAccess.canAccessTraining;
+
+    if (!canAccessModule) {
+      return <Navigate to={planAccess.firstAllowedRoute} replace />;
+    }
   }
 
   // Check role if required
