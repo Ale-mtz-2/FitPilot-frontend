@@ -104,6 +104,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+    environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
 
     steps:
       - name: Set deploy metadata (again, for this job)
@@ -150,6 +151,10 @@ jobs:
           envs: GHCR_TOKEN,GHCR_OWNER,GHCR_USER,APP_DIR,IMAGE_TAG,CONTAINER_NAME,NODE_ENV,FRONTEND_PORT,PROJECT_NAME
           script: |
             set -e
+            if [ -z "$GHCR_TOKEN" ] || [ -z "$GHCR_USER" ]; then
+              echo "GHCR_TOKEN o GHCR_USER vacio. Revisa secrets del environment."
+              exit 1
+            fi
             cd "$APP_DIR"
 
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
