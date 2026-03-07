@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Mail, Lock, Zap, Timer } from 'lucide-react';
-import logo from '@/assets/fitpilot-logo.svg';
+import logo from '@/assets/FitPilot-Logo.svg';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/newAuthStore';
 import { loginSchema, LoginFormData } from '../../utils/validation';
