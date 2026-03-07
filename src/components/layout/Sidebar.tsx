@@ -14,7 +14,7 @@ import {
   ListBulletIcon,
 } from '@heroicons/react/24/outline';
 import { Calendar, Utensils } from 'lucide-react';
-import fitPilotLogo from '../../assets/favicon.ico';
+import fitPilotLogo from '../../assets/FitPilot-Logo.svg';
 import { useAuthStore } from '../../store/newAuthStore';
 import { useUIStore } from '../../store/uiStore';
 import { useProfessional } from '@/contexts/ProfessionalContext';
@@ -217,11 +217,11 @@ export function Sidebar() {
       <motion.div className="px-4 py-5 border-b border-gray-100" layout>
         <div className="flex items-center gap-3">
           <motion.div
-            className="shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/30 overflow-hidden"
-            whileHover={{ scale: 1.05, rotate: 4 }}
+            className="shrink-0 w-10 h-10 rounded-xl bg-transparent flex items-center justify-center overflow-hidden"
+            whileHover={{ scale: 1.05 }}
             transition={{ duration: 0.2 }}
           >
-            <img src={fitPilotLogo} alt="FitPilot" className="h-7 w-7 object-contain" />
+            <img src={fitPilotLogo} alt="FitPilot" className="w-full h-full object-contain scale-125" />
           </motion.div>
           <AnimatePresence mode="wait">
             {isExpanded && (

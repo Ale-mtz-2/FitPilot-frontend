@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { LoginPage } from './pages/auth/LoginPage';
@@ -31,12 +32,54 @@ import { ProfessionalOnboardingPage } from './pages/onboarding/ProfessionalOnboa
 import { SubscriptionPlansPage } from './pages/SubscriptionPlansPage';
 import { CheckoutSuccessPage } from './pages/CheckoutSuccessPage';
 import { CheckoutCancelPage } from './pages/CheckoutCancelPage';
+import i18n from './i18n';
+import {
+  getLanguageFromPathname,
+  normalizeToSupportedLanguage,
+  stripLanguageFromPathname,
+  withLanguagePrefix,
+} from './utils/languageRouting';
 function LegacyMesocycleRedirect() {
   const { id } = useParams<{ id: string }>();
   return <Navigate to={id ? `/training/programs/${id}` : '/training/programs'} replace />;
 }
 
 function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const currentLanguage = normalizeToSupportedLanguage(i18n.resolvedLanguage || i18n.language);
+  const pathnameLanguage = getLanguageFromPathname(location.pathname);
+  const routePathname = stripLanguageFromPathname(location.pathname);
+
+  useEffect(() => {
+    if (!pathnameLanguage) {
+      const prefixedPath = withLanguagePrefix(location.pathname, currentLanguage);
+      const targetPath = `${prefixedPath}${location.search}${location.hash}`;
+      const currentPath = `${location.pathname}${location.search}${location.hash}`;
+
+      if (targetPath !== currentPath) {
+        navigate(targetPath, { replace: true });
+      }
+      return;
+    }
+
+    if (pathnameLanguage !== currentLanguage) {
+      i18n.changeLanguage(pathnameLanguage);
+    }
+  }, [
+    currentLanguage,
+    pathnameLanguage,
+    location.pathname,
+    location.search,
+    location.hash,
+    navigate,
+  ]);
+
+  const routesLocation = pathnameLanguage
+    ? { ...location, pathname: routePathname }
+    : location;
+
   return (
     <>
       <Toaster
@@ -64,7 +107,7 @@ function App() {
         }}
       />
 
-      <Routes>
+      <Routes location={routesLocation}>
         {/* Public Routes */}
         <Route
           path="/auth"

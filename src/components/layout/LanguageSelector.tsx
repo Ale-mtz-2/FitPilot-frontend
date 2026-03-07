@@ -4,6 +4,8 @@ import { GlobeAltIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { useLanguageStore, Language } from '../../store/languageStore';
 import { useAuthStore } from '../../store/newAuthStore';
 import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { withLanguagePrefix } from '../../utils/languageRouting';
 
 interface LanguageOption {
   code: Language;
@@ -20,6 +22,8 @@ export function LanguageSelector() {
   const { t } = useTranslation();
   const { language, setLanguage } = useLanguageStore();
   const { setLanguage: setAuthLanguage } = useAuthStore();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -38,6 +42,14 @@ export function LanguageSelector() {
 
   const handleLanguageChange = (lang: Language) => {
     setIsOpen(false);
+    const localizedPath = withLanguagePrefix(location.pathname, lang);
+    const currentPath = `${location.pathname}${location.search}${location.hash}`;
+    const targetPath = `${localizedPath}${location.search}${location.hash}`;
+
+    if (targetPath !== currentPath) {
+      navigate(targetPath, { replace: true });
+    }
+
     setLanguage(lang);
     setAuthLanguage(lang);
   };
@@ -46,14 +58,16 @@ export function LanguageSelector() {
     <div className="relative" ref={dropdownRef}>
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
-        whileHover={{ scale: 1.02 }}
+        whileHover={{ scale: 1.02, y: -1 }}
         whileTap={{ scale: 0.98 }}
-        className="flex items-center gap-2 px-3 py-2 rounded-xl
-                   bg-gray-50 hover:bg-gray-100 transition-all duration-200
-                   border border-gray-200/50 text-gray-600 hover:text-gray-800"
+        className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl
+                   bg-white transition-all duration-300
+                   border shadow-sm hover:shadow-md 
+                   text-gray-600 hover:text-indigo-600
+                   ${isOpen ? 'border-indigo-200 ring-2 ring-indigo-100' : 'border-gray-200/80 hover:border-indigo-100'}`}
         title={t('common:language.select')}
       >
-        <GlobeAltIcon className="h-4 w-4" />
+        <GlobeAltIcon className="h-5 w-5" />
         <span className="text-sm font-medium hidden sm:inline">
           {currentLanguage.flag} {currentLanguage.code.toUpperCase()}
         </span>

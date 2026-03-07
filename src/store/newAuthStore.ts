@@ -1,6 +1,18 @@
 import { create } from "zustand";
 import { devtools } from 'zustand/middleware';
 import { User } from "../types/api";
+import { useLanguageStore } from "./languageStore";
+
+const resolveInitialLanguage = (): 'es' | 'en' => {
+  if (typeof window === 'undefined') {
+    return 'es';
+  }
+
+  const storedLanguage =
+    localStorage.getItem('fitpilot_language_preference') || localStorage.getItem('language');
+
+  return storedLanguage?.toLowerCase().startsWith('en') ? 'en' : 'es';
+};
 
 type AuthState = {
   token: string | null;
@@ -23,7 +35,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       authChecked: false,
-      language: (localStorage.getItem('language') as 'es' | 'en') || 'es',
+      language: resolveInitialLanguage(),
 
       setAuth: ({ token }) => {
         set({
@@ -42,7 +54,18 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
-      setUser: (user) => set({ user }),
+      setUser: (user) => {
+        const preferredLanguage = user?.preferred_language;
+
+        if (preferredLanguage === 'es' || preferredLanguage === 'en') {
+          useLanguageStore.getState().initFromUser(preferredLanguage);
+          localStorage.setItem('language', preferredLanguage);
+          set({ user, language: preferredLanguage });
+          return;
+        }
+
+        set({ user });
+      },
 
       logout: () => {
         set({
@@ -56,6 +79,7 @@ export const useAuthStore = create<AuthState>()(
       setAuthChecked: (checked) => set({ authChecked: checked }),
 
       setLanguage: (lang) => {
+        useLanguageStore.getState().setLanguage(lang);
         localStorage.setItem('language', lang);
         set({ language: lang });
       },

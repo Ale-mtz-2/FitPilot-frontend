@@ -2,16 +2,19 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
-import { Mail, Lock, Dumbbell, Zap, Timer, User, Phone } from 'lucide-react';
+import { Mail, Lock, Zap, Timer, User, Phone } from 'lucide-react';
+import logo from '@/assets/fitpilot-logo.svg';
 import { motion } from 'framer-motion';
 import { Modal } from '../../components/common/Modal';
 import { OTPInput } from '../../components/common/OTPInput';
 import { useSendVerification, useSignupMutation, useVerifyPhone } from '@/features/auth/queries';
 import { useAuthStore } from '@/store/newAuthStore';
 import { getUserRequest } from '@/api/auth/auth.api';
+import { useTranslation } from 'react-i18next';
 
 export function RegisterPage() {
     const navigate = useNavigate();
+    const { t } = useTranslation('auth');
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
@@ -140,19 +143,18 @@ export function RegisterPage() {
     return (
         <div className="bg-white rounded-3xl shadow-2xl overflow-hidden max-w-5xl w-full flex flex-col md:flex-row min-h-[600px]">
             {/* Left Side - Brand & Visuals */}
-            <div className="relative w-full md:w-1/2 bg-linear-to-br from-[#1a1c4b] via-[#2d1b4e] to-[#1a1033] p-12 text-white overflow-hidden flex flex-col justify-between">
+            <div className="relative w-full md:w-1/2 bg-linear-to-br from-[#182F50] via-[#1D3A63] to-[#12243D] p-12 text-white overflow-hidden flex flex-col justify-between">
                 {/* Background Decor */}
                 <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/20 rounded-full blur-[100px]" />
-                    <div className="absolute bottom-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-[80px]" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#2B568D]/25 rounded-full blur-[100px]" />
+                    <div className="absolute bottom-0 right-0 w-64 h-64 bg-[#3A75B8]/15 rounded-full blur-[80px]" />
                 </div>
 
                 {/* Header */}
                 <div className="relative z-10 flex items-center gap-3">
-                    <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
-                        <Dumbbell className="w-6 h-6 text-white" />
+                    <div className="bg-white rounded-lg shadow-xl flex items-center justify-center overflow-hidden pt-2 px-1">
+                        <img src={logo} alt="FitPilot Logo" className="w-14 h-14 object-cover scale-150 object-center" />
                     </div>
-                    <span className="text-xl font-bold tracking-wide">FitPilot</span>
                 </div>
 
                 {/* Central Visual */}
@@ -204,12 +206,12 @@ export function RegisterPage() {
 
                 {/* Footer Text */}
                 <div className="relative z-10">
-                    <h2 className="text-3xl font-bold mb-4">Elevate Your Training</h2>
+                    <h2 className="text-3xl font-bold mb-4">{t('pages.shared.leftTitle')}</h2>
                     <p className="text-gray-300 text-sm leading-relaxed max-w-sm">
-                        AI-assisted workout routine management tailored specifically for professional trainers and dedicated athletes.
+                        {t('pages.shared.leftSubtitle')}
                     </p>
                     <div className="mt-8 text-xs text-gray-500">
-                        © 2024 FitPilot Inc. All rights reserved.
+                        {t('pages.shared.copyright')}
                     </div>
                 </div>
             </div>
@@ -218,23 +220,23 @@ export function RegisterPage() {
             <div className="w-full md:w-1/2 p-8 md:p-12 bg-white flex flex-col justify-center">
                 <div className="max-w-md mx-auto w-full">
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
-                        <p className="text-gray-500 text-sm">Please enter your details to sign up.</p>
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('pages.register.title')}</h1>
+                        <p className="text-gray-500 text-sm">{t('pages.register.subtitle')}</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="grid grid-cols-2 gap-4">
                             <Input 
-                                label="First Name"
-                                placeholder="John"
+                                label={t('pages.register.firstNameLabel')}
+                                placeholder={t('pages.register.firstNamePlaceholder')}
                                 type="text"
                                 icon={<User className="w-5 h-5" />}
                                 value={firstName}
                                 onChange={(e) => setFirstName(e.target.value)}
                             />
                             <Input 
-                                label="Last Name"
-                                placeholder="Doe"
+                                label={t('pages.register.lastNameLabel')}
+                                placeholder={t('pages.register.lastNamePlaceholder')}
                                 type="text"
                                 icon={<User className="w-5 h-5" />}
                                 value={lastName}
@@ -245,8 +247,8 @@ export function RegisterPage() {
                         <div className="flex gap-2 items-end">
                             <div className="flex-1">
                                 <Input 
-                                    label="Phone Number"
-                                    placeholder="+1 234 567 890"
+                                    label={t('pages.register.phoneLabel')}
+                                    placeholder={t('pages.register.phonePlaceholder')}
                                     type="tel"
                                     icon={<Phone className="w-5 h-5" />}
                                     value={phoneNumber}
@@ -263,18 +265,18 @@ export function RegisterPage() {
                                 disabled={isPhoneVerified || !phoneNumber || cooldownTime > 0}
                             >
                                 {isPhoneVerified 
-                                    ? "Verified" 
+                                    ? t('pages.register.verify.verified')
                                     : cooldownTime > 0 
-                                        ? `Resend in ${formatTime(cooldownTime)}` 
+                                        ? t('pages.register.verify.resendIn', { time: formatTime(cooldownTime) })
                                         : verificationAttempts > 0 
-                                            ? "Resend" 
-                                            : "Validate"}
+                                            ? t('pages.register.verify.resend')
+                                            : t('pages.register.verify.validate')}
                             </Button>
                         </div>
 
                         <Input 
-                            label="Email"
-                            placeholder="trainer1@fitpilot.com"
+                            label={t('pages.register.emailLabel')}
+                            placeholder={t('pages.register.emailPlaceholder')}
                             type="email"
                             icon={<Mail className="w-5 h-5" />}
                             value={email}
@@ -284,8 +286,8 @@ export function RegisterPage() {
                         <div className="space-y-4">
                             <div>
                                 <Input 
-                                    label="Password"
-                                    placeholder="••••••••"
+                                    label={t('pages.register.passwordLabel')}
+                                    placeholder={t('pages.register.passwordPlaceholder')}
                                     type="password"
                                     icon={<Lock className="w-5 h-5" />}
                                     value={password}
@@ -293,14 +295,14 @@ export function RegisterPage() {
                                 />
                                 {password.length > 0 && password.length < 8 && (
                                     <p className="text-xs text-red-500 font-medium pl-1 mt-1">
-                                        Password must be at least 8 characters
+                                        {t('pages.register.passwordMin')}
                                     </p>
                                 )}
                             </div>
                             <div className="space-y-1">
                                 <Input 
-                                    label="Confirm Password"
-                                    placeholder="••••••••"
+                                    label={t('pages.register.confirmPasswordLabel')}
+                                    placeholder={t('pages.register.confirmPasswordPlaceholder')}
                                     type="password"
                                     icon={<Lock className="w-5 h-5" />}
                                     value={confirmPassword}
@@ -308,7 +310,7 @@ export function RegisterPage() {
                                 />
                                 {password && confirmPassword && password === confirmPassword && (
                                     <p className="text-xs text-green-600 font-medium pl-1">
-                                        ✓ Passwords match
+                                        {`✓ ${t('pages.register.passwordsMatch')}`}
                                     </p>
                                 )}
                             </div>
@@ -316,20 +318,20 @@ export function RegisterPage() {
 
                         <Button 
                             type="submit" 
-                            className="w-full"
+                            className="w-full !bg-none !bg-[#67B5DE] hover:!bg-[#4FA5D2] focus:!ring-[#67B5DE] !shadow-[#67B5DE]/25 hover:!shadow-[#67B5DE]/35"
                             isLoading={signupMutation.isPending}
                             disabled={!isFormValid || signupMutation.isPending}
                         >
-                            Sign Up
+                            {t('pages.register.submit')}
                         </Button>
                     </form>
 
                     <div className="mt-8">
                         <div className="text-center">
                             <p className="text-sm text-gray-500">
-                                Already have an account?{' '}
+                                {t('pages.register.hasAccount')}{' '}
                                 <Link to="/auth/login" className="font-semibold text-blue-600 hover:text-blue-700 transition-colors hover:cursor-pointer">
-                                    Sign In
+                                    {t('pages.register.signIn')}
                                 </Link>
                             </p>
                         </div>
@@ -343,11 +345,11 @@ export function RegisterPage() {
                     setIsVerificationModalOpen(false);
                     setVerificationCode('');
                 }}
-                title="Verify Phone Number"
+                title={t('pages.register.verify.modalTitle')}
             >
                 <div className="space-y-4">
                     <p className="text-gray-600 text-sm mb-6 text-center">
-                        Please enter the 6-digit code sent to <span className="font-semibold text-gray-800">{phoneNumber}</span>
+                        {t('pages.register.verify.modalDescription', { phoneNumber })}
                     </p>
                     <div className="flex justify-center mb-8">
                         <OTPInput
@@ -364,14 +366,14 @@ export function RegisterPage() {
                                 setVerificationCode('');
                             }}
                         >
-                            Cancel
+                            {t('pages.register.verify.cancel')}
                         </Button>
                         <Button
                             onClick={handleVerifyPhone}
                             isLoading={verifyPhoneMutation.isPending}
                             disabled={verificationCode.length !== 6}
                         >
-                            Accept
+                            {t('pages.register.verify.accept')}
                         </Button>
                     </div>
                 </div>
