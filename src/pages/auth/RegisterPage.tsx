@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Mail, Lock, Zap, Timer, User, Phone } from 'lucide-react';
-import logo from '@/assets/fitpilot-logo.svg';
+import logo from '@/assets/FitPilot-Logo.svg';
 import { motion } from 'framer-motion';
 import { Modal } from '../../components/common/Modal';
 import { OTPInput } from '../../components/common/OTPInput';
