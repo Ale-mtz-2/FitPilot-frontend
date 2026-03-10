@@ -22,6 +22,8 @@ export interface IFoodNutritionValue {
     fat_g: string | number;
     base_serving_size: string | number;
     base_unit: string;
+    gross_weight_g?: string | number | null;
+    net_weight_g?: string | number | null;
     state: string;
     notes: string | null;
     deleted_at: string | null;
@@ -62,6 +64,8 @@ export interface IFoodItem {
     is_recipe: boolean;
     base_serving_size: string | number;
     base_unit: string;
+    gross_weight_g?: string | number | null;
+    net_weight_g?: string | number | null;
     calories_kcal: string | number | null;
     protein_g: string | number | null;
     carbs_g: string | number | null;
