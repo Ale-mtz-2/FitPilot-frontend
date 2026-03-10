@@ -8,7 +8,6 @@ export function MealPlansLayout() {
 
     const navItems = [
         { name: t('mealPlans.overview'), href: '/nutrition/meal-plans', end: true },
-        { name: t('nav.clientsMenus'), href: '/nutrition/meal-plans/clients-menus' },
         { name: t('mealPlans.builder'), href: '/nutrition/meal-plans/builder' },
         { name: t('mealPlans.templates'), href: '/nutrition/meal-plans/templates' },
         { name: 'Menús Reutilizables', href: '/nutrition/meal-plans/reusable-menus' },

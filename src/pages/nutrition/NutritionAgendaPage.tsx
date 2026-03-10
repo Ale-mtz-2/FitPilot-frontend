@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     format,
     startOfMonth,
@@ -74,20 +75,13 @@ const formatDuration = (seconds: number) => {
 export function NutritionAgendaPage() {
     const { user } = useAuthStore();
     const { professional } = useProfessional();
+    const navigate = useNavigate();
 
     // Use professional ID from context or fallback
     const professionalId = professional?.sub || user?.id;
     const { data: realClients } = useProfessionalClients(professionalId?.toString() || '');
     const { data: slots } = useAvailableSlots(professionalId?.toString() || '');
-    const { data: apiAppointments, isLoading: isLoadingAppointments, refetch: refetchAppointments } = useGetAppointments(professionalId?.toString() || '');
-
-    // Auto-refetch when window gains focus to sync 'in_progress' and 'paused' state across tabs
-    useEffect(() => {
-        const onFocus = () => refetchAppointments();
-        window.addEventListener('focus', onFocus);
-        return () => window.removeEventListener('focus', onFocus);
-    }, [refetchAppointments]);
-
+    const { data: apiAppointments, isLoading: isLoadingAppointments } = useGetAppointments(professionalId?.toString() || '');
     const insertAppointmentMutation = useInsertAppointment();
     const deleteAppointmentMutation = useDeleteAppointment();
     const updateAppointmentMutation = useUpdateAppointment();
@@ -102,8 +96,6 @@ export function NutritionAgendaPage() {
     const [isDateConfirmed, setIsDateConfirmed] = useState(true);
     const [showSuccessToast, setShowSuccessToast] = useState(false);
     const [toastMessage, setToastMessage] = useState('');
-    const [showWarningToast, setShowWarningToast] = useState(false);
-    const [warningMessage, setWarningMessage] = useState('');
     const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null);
     const [meetingLink, setMeetingLink] = useState('');
     const [appointmentTitle, setAppointmentTitle] = useState('');
@@ -232,22 +224,12 @@ export function NutritionAgendaPage() {
         }
     };
 
-    const activeAppointment = apiAppointments?.find(a => a.status === 'in_progress');
-    const activeAppointmentId = activeAppointment ? activeAppointment.id : null;
-
     useEffect(() => {
         if (showSuccessToast) {
             const timer = setTimeout(() => setShowSuccessToast(false), 3000);
             return () => clearTimeout(timer);
         }
     }, [showSuccessToast]);
-
-    useEffect(() => {
-        if (showWarningToast) {
-            const timer = setTimeout(() => setShowWarningToast(false), 4000);
-            return () => clearTimeout(timer);
-        }
-    }, [showWarningToast]);
 
     const getAppointmentsForDay = (day: Date) => appointments.filter(app => isSameDay(app.date, day));
 
@@ -345,14 +327,7 @@ export function NutritionAgendaPage() {
                     <div className="flex items-center gap-2">
                         {isToday(appt.date) && (
                             <button 
-                                onClick={() => {
-                                    if (activeAppointmentId && activeAppointmentId !== appt.id) {
-                                        setWarningMessage('Hay una sesión en curso. Necesita pausarse o finalizarse para poder iniciar otra sesión.');
-                                        setShowWarningToast(true);
-                                    } else {
-                                        window.open(`/nutrition/consultation/${appt.id}`, '_blank');
-                                    }
-                                }}
+                                onClick={() => navigate(`/nutrition/consultation/${appt.id}`)}
                                 className="p-2 bg-nutrition-50 text-nutrition-600 rounded-xl hover:bg-nutrition-600 hover:text-white transition-all shadow-sm group/btn"
                                 title="Iniciar Sesión"
                             >
@@ -403,17 +378,6 @@ export function NutritionAgendaPage() {
                     >
                         <CheckCircle className="w-5 h-5" />
                         <span className="font-medium">{toastMessage}</span>
-                    </motion.div>
-                )}
-                {showWarningToast && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20, x: "-50%" }}
-                        animate={{ opacity: 1, y: 0, x: "-50%" }}
-                        exit={{ opacity: 0, y: -20, x: "-50%" }}
-                        className="fixed top-6 left-1/2 z-100 flex items-center gap-3 bg-orange-500 text-white px-6 py-3 rounded-full shadow-lg shadow-orange-200"
-                    >
-                        <Clock className="w-5 h-5" />
-                        <span className="font-medium">{warningMessage}</span>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -682,7 +646,7 @@ export function NutritionAgendaPage() {
                                             {getAppointmentsForDay(selectedDateForAppointment).length > 0 ? (
                                                 getAppointmentsForDay(selectedDateForAppointment).map((appt) => (
                                                     <div className="group/item relative" key={appt.id}>
-                                                        <div
+                                                        <button
                                                             onClick={() => {
                                                                 const client = realClients?.find(c => Number(c.id) === Number(appt.clientId));
                                                                 const rawApp = apiAppointments?.find(a => a.id === appt.id);
@@ -697,26 +661,7 @@ export function NutritionAgendaPage() {
                                                                     setModalView('FORM');
                                                                 }
                                                             }}
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter' || e.key === ' ') {
-                                                                    e.preventDefault();
-                                                                    const client = realClients?.find(c => Number(c.id) === Number(appt.clientId));
-                                                                    const rawApp = apiAppointments?.find(a => a.id === appt.id);
-                                                                    if (client && rawApp) {
-                                                                        setSelectedClient(client);
-                                                                        setAppointmentTitle(rawApp.title || '');
-                                                                        setAppointmentNotes(rawApp.notes || '');
-                                                                        setMeetingLink(rawApp.meeting_link || '');
-                                                                        setSelectedType(rawApp.type as any || 'NUTRITION');
-                                                                        setEditingAppointment(appt);
-                                                                        setSelectedTime(appt.date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
-                                                                        setModalView('FORM');
-                                                                    }
-                                                                }
-                                                            }}
-                                                            role="button"
-                                                            tabIndex={0}
-                                                            className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-nutrition-50/50 transition-all text-left border border-gray-100 hover:border-nutrition-100 bg-white cursor-pointer"
+                                                            className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-nutrition-50/50 transition-all text-left border border-gray-100 hover:border-nutrition-100 bg-white"
                                                         >
                                                             <div className="relative">
                                                                 <img src={appt.clientAvatar} alt="" className="w-12 h-12 rounded-2xl object-cover bg-gray-100 shadow-sm" />
@@ -747,12 +692,7 @@ export function NutritionAgendaPage() {
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        if (activeAppointmentId && activeAppointmentId !== appt.id) {
-                                                                            setWarningMessage('Hay una sesión en curso. Necesita pausarse o finalizarse para poder iniciar otra sesión.');
-                                                                            setShowWarningToast(true);
-                                                                        } else {
-                                                                            window.open(`/nutrition/consultation/${appt.id}`, '_blank');
-                                                                        }
+                                                                        navigate(`/nutrition/consultation/${appt.id}`);
                                                                     }}
                                                                     className="p-2 rounded-xl text-nutrition-600 hover:bg-nutrition-50 transition-all mr-1"
                                                                     title="Iniciar Sesión"
@@ -770,7 +710,7 @@ export function NutritionAgendaPage() {
                                                                 </button>
                                                                 <ChevronRight className="w-5 h-5 text-gray-300 group-hover/item:text-nutrition-400 transition-colors" />
                                                             </div>
-                                                        </div>
+                                                        </button>
                                                     </div>
                                                 ))
                                             ) : (

@@ -7,6 +7,8 @@ import { RegisterPage } from './pages/auth/RegisterPage';
 import { ExercisesPage } from './pages/ExercisesPage';
 import { TrainingTemplatesPage } from './pages/TrainingTemplatesPage';
 import { MesocycleEditorPage } from './pages/MesocycleEditorPage';
+import { AIGeneratorPage } from './pages/AIGeneratorPage';
+import { ClientPlansUnifiedPage } from './pages/ClientPlansUnifiedPage';
 import { MainLayout } from './components/layout/MainLayout';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { NutritionClientsPage } from './pages/nutrition/NutritionClientsPage';
@@ -24,7 +26,6 @@ import { MealBuilderPage } from './pages/nutrition/meal-plans/MealBuilderPage';
 import { MealTemplatesPage } from './pages/nutrition/meal-plans/MealTemplatesPage';
 import { MenuCreationPage } from './pages/nutrition/meal-plans/MenuCreationPage';
 import { ReusableMenusPage } from './pages/nutrition/meal-plans/ReusableMenusPage';
-import { ClientsMenusPage } from './pages/nutrition/meal-plans/ClientsMenusPage';
 import { ClientWeeklyMenuView } from './pages/nutrition/meal-plans/ClientWeeklyMenuView';
 import { RegisterClientPage } from './pages/nutrition/RegisterClientPage';
 import { DraftMenusPage } from './pages/nutrition/meal-plans/DraftMenusPage';
@@ -42,6 +43,16 @@ import {
 function LegacyMesocycleRedirect() {
   const { id } = useParams<{ id: string }>();
   return <Navigate to={id ? `/training/programs/${id}` : '/training/programs'} replace />;
+}
+
+function LegacyAIGeneratorRedirect() {
+  const location = useLocation();
+  return (
+    <Navigate
+      to={`/training/ai-generator${location.search || ''}${location.hash || ''}`}
+      replace
+    />
+  );
 }
 
 function App() {
@@ -164,6 +175,46 @@ function App() {
         />
 
         <Route
+          path="/client-plans"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <ClientPlansUnifiedPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/training/client-plans"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/client-plans" replace />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/nutrition/meal-plans/clients-menus"
+          element={
+            <ProtectedRoute>
+              <Navigate to="/client-plans" replace />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/training/ai-generator"
+          element={
+            <ProtectedRoute requiredAccess="training">
+              <MainLayout>
+                <AIGeneratorPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/training/programs/new"
           element={
             <ProtectedRoute requiredAccess="training">
@@ -266,21 +317,11 @@ function App() {
 
         <Route
           path="/ai-generator"
-          element={<Navigate to="/training/programs" replace />}
+          element={<LegacyAIGeneratorRedirect />}
         />
 
 
-        {/* Standalone Consultation Route (New Tab, Full Screen) */}
-        <Route
-          path="/nutrition/consultation/:id"
-          element={
-            <ProtectedRoute requiredAccess="nutrition">
-              <NutritionConsultationPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Nutrition Routes (With Layout) */}
+        {/* Nutrition Routes */}
         <Route
           path="/nutrition"
           element={
@@ -311,7 +352,14 @@ function App() {
               </ProtectedRoute>
             }
           />
-
+          <Route
+            path="consultation/:id"
+            element={
+              <ProtectedRoute requiredAccess="nutrition">
+                <NutritionConsultationPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="meal-plans"
             element={
@@ -325,7 +373,6 @@ function App() {
             <Route path="templates" element={<MealTemplatesPage />} />
             <Route path="create-menu" element={<MenuCreationPage />} />
             <Route path="reusable-menus" element={<ReusableMenusPage />} />
-            <Route path="clients-menus" element={<ClientsMenusPage />} />
             <Route path="clients-menus/weekly-view/:clientId" element={<ClientWeeklyMenuView />} />
             <Route path="drafts" element={<DraftMenusPage />} />
           </Route>

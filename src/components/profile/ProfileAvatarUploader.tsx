@@ -1,5 +1,4 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Camera, MoveHorizontal, MoveVertical, Pencil, ZoomIn } from 'lucide-react';
 import { Modal } from '@/components/common/Modal';
 
@@ -21,6 +20,7 @@ interface ProfileAvatarUploaderProps {
     imageUrl?: string | null;
     onSave: (imageBlob: Blob) => Promise<void> | void;
     isSaving?: boolean;
+    previewMode?: 'modal' | 'overlay';
 }
 
 type CropRect = {
@@ -199,6 +199,7 @@ export function ProfileAvatarUploader({
     imageUrl,
     onSave,
     isSaving = false,
+    previewMode = 'modal',
 }: ProfileAvatarUploaderProps) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [displayImage, setDisplayImage] = useState<string | null>(imageUrl ?? null);
@@ -210,9 +211,6 @@ export function ProfileAvatarUploader({
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    const [isDragging, setIsDragging] = useState(false);
-    const dragStartCoords = useRef<{ x: number; y: number } | null>(null);
-    const dragStartOffsets = useRef<{ x: number; y: number } | null>(null);
 
     useEffect(() => {
         setDisplayImage(imageUrl ?? null);
@@ -366,45 +364,6 @@ export function ProfileAvatarUploader({
         }
     };
 
-    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-        setIsDragging(true);
-        dragStartCoords.current = { x: e.clientX, y: e.clientY };
-        dragStartOffsets.current = { x: offsetX, y: offsetY };
-        e.currentTarget.setPointerCapture(e.pointerId);
-    };
-
-    const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (!isDragging || !dragStartCoords.current || !dragStartOffsets.current || !draft || !cropRect) return;
-
-        const deltaX = e.clientX - dragStartCoords.current.x;
-        const deltaY = e.clientY - dragStartCoords.current.y;
-
-        const scale = PREVIEW_SIZE / cropRect.side;
-        const maxX = Math.max(0, (draft.naturalWidth - cropRect.side) / 2);
-        const maxY = Math.max(0, (draft.naturalHeight - cropRect.side) / 2);
-
-        let newOffsetX = dragStartOffsets.current.x;
-        if (maxX > 0) {
-            newOffsetX -= (deltaX * 100) / (maxX * scale);
-        }
-
-        let newOffsetY = dragStartOffsets.current.y;
-        if (maxY > 0) {
-            newOffsetY -= (deltaY * 100) / (maxY * scale);
-        }
-
-        setOffsetX(clamp(Math.round(newOffsetX), -100, 100));
-        setOffsetY(clamp(Math.round(newOffsetY), -100, 100));
-    };
-
-    const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (!isDragging) return;
-        setIsDragging(false);
-        dragStartCoords.current = null;
-        dragStartOffsets.current = null;
-        e.currentTarget.releasePointerCapture(e.pointerId);
-    };
-
     return (
         <div className="flex flex-col items-center text-center">
             <div className="relative mb-4">
@@ -481,15 +440,7 @@ export function ProfileAvatarUploader({
                     <div className="space-y-5">
                         <div className="flex flex-col lg:flex-row gap-5">
                             <div className="mx-auto lg:mx-0">
-                                <div 
-                                    className={`relative w-72 h-72 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 touch-none select-none ${
-                                        isDragging ? 'cursor-grabbing' : 'cursor-grab'
-                                    }`}
-                                    onPointerDown={handlePointerDown}
-                                    onPointerMove={handlePointerMove}
-                                    onPointerUp={handlePointerUp}
-                                    onPointerCancel={handlePointerUp}
-                                >
+                                <div className="relative w-72 h-72 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100">
                                     <img
                                         src={draft.src}
                                         alt="Previsualización de recorte"
@@ -497,7 +448,7 @@ export function ProfileAvatarUploader({
                                         style={previewStyle}
                                         draggable={false}
                                     />
-                                    <div className="absolute inset-0 ring-1 ring-inset ring-black/5 pointer-events-none" />
+                                    <div className="absolute inset-0 ring-1 ring-inset ring-black/5" />
                                 </div>
                             </div>
 
@@ -587,20 +538,42 @@ export function ProfileAvatarUploader({
                 )}
             </Modal>
 
-            {isPreviewOpen ? createPortal(
+            {previewMode === 'modal' ? (
+                <Modal
+                    isOpen={isPreviewOpen}
+                    onClose={() => setIsPreviewOpen(false)}
+                    title="Foto de perfil"
+                    size="sm"
+                >
+                    <div className="flex items-center justify-center pt-4 pb-10">
+                        <div className="w-64 h-64 sm:w-76 sm:h-76 aspect-square rounded-4xl overflow-hidden shadow-[0_20px_40px_-15px_rgba(0,0,0,0.15)] ring-1 ring-gray-900/5 bg-linear-to-br from-blue-500 to-blue-600">
+                            {displayImage ? (
+                                <img
+                                    src={displayImage}
+                                    alt="Foto de perfil ampliada"
+                                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-white text-6xl font-light">
+                                    {initials}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </Modal>
+            ) : null}
+
+            {previewMode === 'overlay' && isPreviewOpen ? (
                 <div
-                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 transition-all duration-300"
+                    className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-[2px] p-4"
                     onClick={() => setIsPreviewOpen(false)}
                     role="button"
                     tabIndex={-1}
                     aria-label="Cerrar vista previa de foto de perfil"
                 >
                     <div
-                        className="relative w-[90vw] h-[90vw] max-w-[400px] max-h-[400px] sm:max-w-[500px] sm:max-h-[500px] md:max-w-[600px] md:max-h-[600px] aspect-square rounded-4xl overflow-hidden shadow-2xl ring-1 ring-white/10 bg-linear-to-br from-blue-500 to-blue-600 animate-in fade-in zoom-in-95 duration-200"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setIsPreviewOpen(false);
-                        }}
+                        className="w-52 h-52 sm:w-64 sm:h-64 md:w-72 md:h-72 aspect-square rounded-[1.75rem] overflow-hidden shadow-[0_35px_70px_-25px_rgba(0,0,0,0.6)] ring-1 ring-white/20 bg-linear-to-br from-blue-500 to-blue-600"
+                        onClick={() => setIsPreviewOpen(false)}
                     >
                         {displayImage ? (
                             <img
@@ -609,13 +582,12 @@ export function ProfileAvatarUploader({
                                 className="w-full h-full object-cover"
                             />
                         ) : (
-                            <div className="w-full h-full flex items-center justify-center text-white text-7xl md:text-9xl font-light">
+                            <div className="w-full h-full flex items-center justify-center text-white text-6xl font-light">
                                 {initials}
                             </div>
                         )}
                     </div>
-                </div>,
-                document.body
+                </div>
             ) : null}
         </div>
     );

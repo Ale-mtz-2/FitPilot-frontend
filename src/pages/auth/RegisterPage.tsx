@@ -26,12 +26,12 @@ export function RegisterPage() {
     const [isPhoneVerified, setIsPhoneVerified] = useState(false);
     const [verificationAttempts, setVerificationAttempts] = useState(0);
     const [cooldownTime, setCooldownTime] = useState(0);
-    
+
     const sendVerificationMutation = useSendVerification();
     const verifyPhoneMutation = useVerifyPhone();
     const signupMutation = useSignupMutation();
 
-    const isFormValid = 
+    const isFormValid =
         firstName.trim() !== '' &&
         lastName.trim() !== '' &&
         email.trim() !== '' &&
@@ -39,10 +39,6 @@ export function RegisterPage() {
         confirmPassword !== '' &&
         password === confirmPassword &&
         isPhoneVerified;
-    const showPasswordMismatch =
-        password.length > 0 &&
-        confirmPassword.length > 0 &&
-        password !== confirmPassword;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -100,16 +96,16 @@ export function RegisterPage() {
 
     const handleSendVerification = () => {
         if (!phoneNumber || cooldownTime > 0) return;
-        
+
         sendVerificationMutation.mutate(
             { phone_number: phoneNumber },
             {
                 onSuccess: () => {
                     setIsVerificationModalOpen(true);
-                    
+
                     const nextAttempt = verificationAttempts + 1;
                     setVerificationAttempts(nextAttempt);
-                    
+
                     // Backoff logic
                     if (nextAttempt === 1) setCooldownTime(60); // 1 minute
                     else if (nextAttempt === 2) setCooldownTime(300); // 5 minutes
@@ -126,7 +122,7 @@ export function RegisterPage() {
 
     const handleVerifyPhone = () => {
         if (!verificationCode || verificationCode.length !== 6) return;
-        
+
         verifyPhoneMutation.mutate(
             { phone_number: phoneNumber, code: verificationCode },
             {
@@ -145,9 +141,9 @@ export function RegisterPage() {
     };
 
     return (
-        <div className="bg-white rounded-4xl shadow-2xl overflow-hidden max-w-4xl w-full flex flex-col md:flex-row min-h-[500px]">
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden max-w-5xl w-full flex flex-col md:flex-row min-h-[600px]">
             {/* Left Side - Brand & Visuals */}
-            <div className="relative w-full md:w-1/2 bg-linear-to-br from-[#182F50] via-[#1D3A63] to-[#12243D] p-10 text-white overflow-hidden flex flex-col justify-between">
+            <div className="relative w-full md:w-1/2 bg-linear-to-br from-[#182F50] via-[#1D3A63] to-[#12243D] p-12 text-white overflow-hidden flex flex-col justify-between">
                 {/* Background Decor */}
                 <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#2B568D]/25 rounded-full blur-[100px]" />
@@ -164,46 +160,46 @@ export function RegisterPage() {
                 {/* Central Visual */}
                 <div className="relative z-10 flex-1 flex items-center justify-center my-8">
                     <div className="relative w-64 h-64">
-                         {/* Circle container */}
+                        {/* Circle container */}
                         <div className="absolute inset-0 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm flex items-center justify-center">
-                             {/* Stats illustration */}
-                             <div className="flex items-end gap-2 h-24">
-                                <motion.div 
+                            {/* Stats illustration */}
+                            <div className="flex items-end gap-2 h-24">
+                                <motion.div
                                     className="w-6 bg-white rounded-t-sm"
                                     initial={{ height: 0 }}
                                     animate={{ height: "60%" }}
                                     transition={{ duration: 1, delay: 0.2 }}
                                 />
-                                <motion.div 
+                                <motion.div
                                     className="w-6 bg-white rounded-t-sm"
                                     initial={{ height: 0 }}
                                     animate={{ height: "100%" }}
                                     transition={{ duration: 1, delay: 0.4 }}
                                 />
-                                <motion.div 
+                                <motion.div
                                     className="w-6 bg-white rounded-t-sm"
                                     initial={{ height: 0 }}
                                     animate={{ height: "40%" }}
                                     transition={{ duration: 1, delay: 0.6 }}
                                 />
-                             </div>
+                            </div>
                         </div>
 
                         {/* Floating elements */}
-                        <motion.div 
+                        <motion.div
                             className="absolute -right-4 top-10 p-3 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 shadow-xl"
                             animate={{ y: [0, -10, 0] }}
                             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                         >
                             <Timer className="w-6 h-6 text-white" />
                         </motion.div>
-                        
-                        <motion.div 
+
+                        <motion.div
                             className="absolute -left-4 bottom-10 p-3 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 shadow-xl"
                             animate={{ y: [0, 10, 0] }}
                             transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
                         >
-                             <Zap className="w-6 h-6 text-white" />
+                            <Zap className="w-6 h-6 text-white" />
                         </motion.div>
                     </div>
                 </div>
@@ -221,7 +217,7 @@ export function RegisterPage() {
             </div>
 
             {/* Right Side - Register Form */}
-            <div className="w-full md:w-1/2 p-6 md:p-10 bg-white flex flex-col justify-center">
+            <div className="w-full md:w-1/2 p-8 md:p-12 bg-white flex flex-col justify-center">
                 <div className="max-w-md mx-auto w-full">
                     <div className="mb-8">
                         <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('pages.register.title')}</h1>
@@ -230,7 +226,7 @@ export function RegisterPage() {
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div className="grid grid-cols-2 gap-4">
-                            <Input 
+                            <Input
                                 label={t('pages.register.firstNameLabel')}
                                 placeholder={t('pages.register.firstNamePlaceholder')}
                                 type="text"
@@ -238,7 +234,7 @@ export function RegisterPage() {
                                 value={firstName}
                                 onChange={(e) => setFirstName(e.target.value)}
                             />
-                            <Input 
+                            <Input
                                 label={t('pages.register.lastNameLabel')}
                                 placeholder={t('pages.register.lastNamePlaceholder')}
                                 type="text"
@@ -250,7 +246,7 @@ export function RegisterPage() {
 
                         <div className="flex gap-2 items-end">
                             <div className="flex-1">
-                                <Input 
+                                <Input
                                     label={t('pages.register.phoneLabel')}
                                     placeholder={t('pages.register.phonePlaceholder')}
                                     type="tel"
@@ -260,25 +256,25 @@ export function RegisterPage() {
                                     disabled={isPhoneVerified}
                                 />
                             </div>
-                            <Button 
-                                type="button" 
+                            <Button
+                                type="button"
                                 variant="secondary"
                                 className="mb-[2px]"
                                 onClick={handleSendVerification}
                                 isLoading={sendVerificationMutation.isPending}
                                 disabled={isPhoneVerified || !phoneNumber || cooldownTime > 0}
                             >
-                                {isPhoneVerified 
+                                {isPhoneVerified
                                     ? t('pages.register.verify.verified')
-                                    : cooldownTime > 0 
+                                    : cooldownTime > 0
                                         ? t('pages.register.verify.resendIn', { time: formatTime(cooldownTime) })
-                                        : verificationAttempts > 0 
+                                        : verificationAttempts > 0
                                             ? t('pages.register.verify.resend')
                                             : t('pages.register.verify.validate')}
                             </Button>
                         </div>
 
-                        <Input 
+                        <Input
                             label={t('pages.register.emailLabel')}
                             placeholder={t('pages.register.emailPlaceholder')}
                             type="email"
@@ -286,10 +282,10 @@ export function RegisterPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                         />
-                        
+
                         <div className="space-y-4">
                             <div>
-                                <Input 
+                                <Input
                                     label={t('pages.register.passwordLabel')}
                                     placeholder={t('pages.register.passwordPlaceholder')}
                                     type="password"
@@ -304,16 +300,15 @@ export function RegisterPage() {
                                 )}
                             </div>
                             <div className="space-y-1">
-                                <Input 
+                                <Input
                                     label={t('pages.register.confirmPasswordLabel')}
                                     placeholder={t('pages.register.confirmPasswordPlaceholder')}
                                     type="password"
                                     icon={<Lock className="w-5 h-5" />}
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
-                                    error={showPasswordMismatch ? t('pages.register.passwordsDoNotMatch') : undefined}
                                 />
-                                {!showPasswordMismatch && password && confirmPassword && password === confirmPassword && (
+                                {password && confirmPassword && password === confirmPassword && (
                                     <p className="text-xs text-green-600 font-medium pl-1">
                                         {`✓ ${t('pages.register.passwordsMatch')}`}
                                     </p>
@@ -321,9 +316,9 @@ export function RegisterPage() {
                             </div>
                         </div>
 
-                        <Button 
-                            type="submit" 
-                            className="w-full bg-none! bg-[#67B5DE]! hover:bg-[#4FA5D2]! focus:ring-[#67B5DE]! shadow-[#67B5DE]/25! hover:shadow-[#67B5DE]/35!"
+                        <Button
+                            type="submit"
+                            className="w-full !bg-none !bg-[#67B5DE] hover:!bg-[#4FA5D2] focus:!ring-[#67B5DE] !shadow-[#67B5DE]/25 hover:!shadow-[#67B5DE]/35"
                             isLoading={signupMutation.isPending}
                             disabled={!isFormValid || signupMutation.isPending}
                         >

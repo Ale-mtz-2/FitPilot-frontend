@@ -250,12 +250,7 @@ export function NutritionClientsPage() {
                     {paginatedClients.map((client) => (
                         <ClientCard
                             key={client.id}
-                            image={
-                                client.profile_picture ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                    `${client.name || ''} ${client.lastname || ''}`.trim() || 'Cliente',
-                                )}&background=random&size=128`
-                            }
+                            image={`${client.profile_picture}`}
                             clientName={`${client.name}`}
                             clientLastName={client.lastname ?? ''}
                             nextAppointment={client.nextAppointment || null}

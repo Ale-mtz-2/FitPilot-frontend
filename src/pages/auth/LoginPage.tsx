@@ -39,43 +39,6 @@ export function LoginPage() {
     }, [authChecked, isAuthenticated, navigate]);
 
     const translateError = (message?: string) => (message ? t(message) : undefined);
-    const getBackendErrorMessage = (err: unknown): string => {
-        const maybeError = err as {
-            message?: string;
-            response?: {
-                data?: {
-                    message?: unknown;
-                };
-            };
-            data?: {
-                message?: unknown;
-            };
-        };
-
-        const backendMessage =
-            maybeError?.response?.data?.message ?? maybeError?.data?.message;
-
-        if (typeof backendMessage === 'string' && backendMessage.trim()) {
-            return backendMessage;
-        }
-
-        if (Array.isArray(backendMessage)) {
-            const normalized = backendMessage
-                .filter((item): item is string => typeof item === 'string')
-                .join(', ')
-                .trim();
-
-            if (normalized) {
-                return normalized;
-            }
-        }
-
-        if (typeof maybeError?.message === 'string' && maybeError.message.trim()) {
-            return maybeError.message;
-        }
-
-        return t('pages.login.loginFailed');
-    };
 
     const onSubmit = (data: LoginFormData) => {
         login({ ...data, app_type: 'PROFESSIONAL_APP' }, {
@@ -84,15 +47,15 @@ export function LoginPage() {
                 navigate('/', { replace: true });
             },
             onError: (err: any) => {
-                toast.error(getBackendErrorMessage(err));
+                toast.error(err.message || t('pages.login.loginFailed'));
             }
         });
     };
 
     return (
-        <div className="bg-white rounded-4xl shadow-2xl overflow-hidden max-w-4xl w-full flex flex-col md:flex-row min-h-[500px]">
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden max-w-5xl w-full flex flex-col md:flex-row min-h-[600px]">
             {/* Left Side - Brand & Visuals */}
-            <div className="relative w-full md:w-1/2 bg-linear-to-br from-[#182F50] via-[#1D3A63] to-[#12243D] p-10 text-white overflow-hidden flex flex-col justify-between">
+            <div className="relative w-full md:w-1/2 bg-linear-to-br from-[#182F50] via-[#1D3A63] to-[#12243D] p-12 text-white overflow-hidden flex flex-col justify-between">
                 {/* Background Decor */}
                 <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#2B568D]/25 rounded-full blur-[100px]" />
@@ -110,46 +73,46 @@ export function LoginPage() {
                 {/* Central Visual */}
                 <div className="relative z-10 flex-1 flex items-center justify-center my-8">
                     <div className="relative w-64 h-64">
-                         {/* Circle container */}
+                        {/* Circle container */}
                         <div className="absolute inset-0 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm flex items-center justify-center">
-                             {/* Stats illustration */}
-                             <div className="flex items-end gap-2 h-24">
-                                <motion.div 
+                            {/* Stats illustration */}
+                            <div className="flex items-end gap-2 h-24">
+                                <motion.div
                                     className="w-6 bg-white rounded-t-sm"
                                     initial={{ height: 0 }}
                                     animate={{ height: "60%" }}
                                     transition={{ duration: 1, delay: 0.2 }}
                                 />
-                                <motion.div 
+                                <motion.div
                                     className="w-6 bg-white rounded-t-sm"
                                     initial={{ height: 0 }}
                                     animate={{ height: "100%" }}
                                     transition={{ duration: 1, delay: 0.4 }}
                                 />
-                                <motion.div 
+                                <motion.div
                                     className="w-6 bg-white rounded-t-sm"
                                     initial={{ height: 0 }}
                                     animate={{ height: "40%" }}
                                     transition={{ duration: 1, delay: 0.6 }}
                                 />
-                             </div>
+                            </div>
                         </div>
 
                         {/* Floating elements */}
-                        <motion.div 
+                        <motion.div
                             className="absolute -right-4 top-10 p-3 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 shadow-xl"
                             animate={{ y: [0, -10, 0] }}
                             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                         >
                             <Timer className="w-6 h-6 text-white" />
                         </motion.div>
-                        
-                        <motion.div 
+
+                        <motion.div
                             className="absolute -left-4 bottom-10 p-3 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 shadow-xl"
                             animate={{ y: [0, 10, 0] }}
                             transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
                         >
-                             <Zap className="w-6 h-6 text-white" />
+                            <Zap className="w-6 h-6 text-white" />
                         </motion.div>
                     </div>
                 </div>
@@ -167,7 +130,7 @@ export function LoginPage() {
             </div>
 
             {/* Right Side - Login Form */}
-            <div className="w-full md:w-1/2 p-6 md:p-10 bg-white flex flex-col justify-center">
+            <div className="w-full md:w-1/2 p-8 md:p-12 bg-white flex flex-col justify-center">
                 <div className="max-w-md mx-auto w-full">
                     <div className="mb-8">
                         <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('pages.login.title')}</h1>
@@ -175,7 +138,7 @@ export function LoginPage() {
                     </div>
 
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-                        <Input 
+                        <Input
                             label={t('pages.login.identifierLabel')}
                             placeholder={t('pages.login.identifierPlaceholder')}
                             type="text"
@@ -183,9 +146,9 @@ export function LoginPage() {
                             error={translateError(errors.identifier?.message)}
                             {...register('identifier')}
                         />
-                        
+
                         <div className="space-y-1">
-                            <Input 
+                            <Input
                                 label={t('pages.login.passwordLabel')}
                                 placeholder={t('pages.login.passwordPlaceholder')}
                                 type="password"
@@ -204,13 +167,13 @@ export function LoginPage() {
 
                         {error && (
                             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                                {getBackendErrorMessage(error)}
+                                {error.message}
                             </div>
                         )}
 
-                        <Button 
-                            type="submit" 
-                            className="w-full bg-none! bg-[#67B5DE]! hover:bg-[#4FA5D2]! focus:ring-[#67B5DE]! shadow-[#67B5DE]/25! hover:shadow-[#67B5DE]/35!"
+                        <Button
+                            type="submit"
+                            className="w-full !bg-none !bg-[#67B5DE] hover:!bg-[#4FA5D2] focus:!ring-[#67B5DE] !shadow-[#67B5DE]/25 hover:!shadow-[#67B5DE]/35"
                             isLoading={isLoading}
                         >
                             {t('pages.login.submit')}

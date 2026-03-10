@@ -22,7 +22,7 @@ import { DatePicker } from '@/components/common/DatePicker';
 import { ConsultationProgress } from '@/components/consultation/ConsultationProgress';
 import { ConsultationHistorySidebar } from '@/components/consultation/ConsultationHistorySidebar';
 
-import { useGetAppointments, useStartConsultation, useFinishConsultation, useCreateAppointmentDraft, useUpdateAppointmentDraft, useGetAppointmentDraft, useUpdateAppointment } from '@/features/appointments/queries';
+import { useGetAppointments, useStartConsultation, useFinishConsultation, useCreateAppointmentDraft, useUpdateAppointmentDraft, useGetAppointmentDraft } from '@/features/appointments/queries';
 import { useProfessional } from '@/contexts/ProfessionalContext';
 import { useAuthStore } from '@/store/newAuthStore';
 import { useProfessionalClients } from '@/features/professional-clients/queries';
@@ -33,7 +33,96 @@ import { Modal } from '@/components/common/Modal';
 import { useClientHistory, useSaveClientMetric } from '@/features/client-history/queries';
 import { useAudioRecorder } from '@/features/consultation/hooks/useAudioRecorder';
 import { useTranscribeAudio } from '@/features/consultation/queries';
+import { clientInterviewsApi } from '@/services/client-interviews';
+import type { ClientInterviewUpdate } from '@/types/client';
+import type { AppointmentDraftJsonState } from '@/features/appointments/types';
 import { Loader2, Mic } from 'lucide-react';
+
+type TrainingProfileState = ClientInterviewUpdate;
+
+const DEFAULT_TRAINING_PROFILE: TrainingProfileState = {
+    experience_level: 'beginner',
+    exercise_variety: 'medium',
+    include_cardio: false,
+    include_warmup: true,
+    include_cooldown: false,
+};
+
+const splitCsvToStringArray = (value: string): string[] | undefined => {
+    const items = value
+        .split(',')
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean);
+
+    return items.length ? Array.from(new Set(items)) : undefined;
+};
+
+const splitCsvToDayArray = (value: string): number[] | undefined => {
+    const parsed = value
+        .split(',')
+        .map((item) => Number(item.trim()))
+        .filter((item) => Number.isInteger(item) && item >= 1 && item <= 7);
+
+    return parsed.length ? Array.from(new Set(parsed)).sort((a, b) => a - b) : undefined;
+};
+
+const joinArrayForInput = (value?: Array<string | number>): string => {
+    if (!value || value.length === 0) return '';
+    return value.join(', ');
+};
+
+const normalizeTrainingProfile = (raw: any): TrainingProfileState => {
+    if (!raw || typeof raw !== 'object') {
+        return { ...DEFAULT_TRAINING_PROFILE };
+    }
+
+    return {
+        ...DEFAULT_TRAINING_PROFILE,
+        ...raw,
+        experience_level: raw.experience_level || DEFAULT_TRAINING_PROFILE.experience_level,
+        exercise_variety: raw.exercise_variety || DEFAULT_TRAINING_PROFILE.exercise_variety,
+        include_cardio: raw.include_cardio ?? DEFAULT_TRAINING_PROFILE.include_cardio,
+        include_warmup: raw.include_warmup ?? DEFAULT_TRAINING_PROFILE.include_warmup,
+        include_cooldown: raw.include_cooldown ?? DEFAULT_TRAINING_PROFILE.include_cooldown,
+    };
+};
+
+const buildTrainingInterviewPayload = (profile: TrainingProfileState): ClientInterviewUpdate => ({
+    document_id: profile.document_id?.trim() || undefined,
+    phone: profile.phone?.trim() || undefined,
+    address: profile.address?.trim() || undefined,
+    emergency_contact_name: profile.emergency_contact_name?.trim() || undefined,
+    emergency_contact_phone: profile.emergency_contact_phone?.trim() || undefined,
+    insurance_provider: profile.insurance_provider?.trim() || undefined,
+    policy_number: profile.policy_number?.trim() || undefined,
+    experience_level: profile.experience_level || undefined,
+    age: profile.age ?? undefined,
+    gender: profile.gender || undefined,
+    occupation: profile.occupation?.trim() || undefined,
+    weight_kg: profile.weight_kg ?? undefined,
+    height_cm: profile.height_cm ?? undefined,
+    training_experience_months: profile.training_experience_months ?? undefined,
+    primary_goal: profile.primary_goal || undefined,
+    specific_goals_text: profile.specific_goals_text?.trim() || undefined,
+    target_muscle_groups: profile.target_muscle_groups?.length ? profile.target_muscle_groups : undefined,
+    days_per_week: profile.days_per_week ?? undefined,
+    session_duration_minutes: profile.session_duration_minutes ?? undefined,
+    preferred_days: profile.preferred_days?.length ? profile.preferred_days : undefined,
+    has_gym_access: profile.has_gym_access,
+    available_equipment: profile.available_equipment?.length ? profile.available_equipment : undefined,
+    equipment_notes: profile.equipment_notes?.trim() || undefined,
+    injury_areas: profile.injury_areas?.length ? profile.injury_areas : undefined,
+    injury_details: profile.injury_details?.trim() || undefined,
+    excluded_exercises: profile.excluded_exercises?.length ? profile.excluded_exercises : undefined,
+    medical_conditions: profile.medical_conditions?.length ? profile.medical_conditions : undefined,
+    mobility_limitations: profile.mobility_limitations?.trim() || undefined,
+    exercise_variety: profile.exercise_variety || undefined,
+    include_cardio: profile.include_cardio,
+    include_warmup: profile.include_warmup,
+    include_cooldown: profile.include_cooldown,
+    preferred_training_style: profile.preferred_training_style?.trim() || undefined,
+    notes: profile.notes?.trim() || undefined,
+});
 
 
 export function NutritionConsultationPage() {
@@ -43,29 +132,11 @@ export function NutritionConsultationPage() {
     const { user } = useAuthStore();
     const professionalId = professional?.sub || user?.id;
 
-    const {
-        data: appointments,
-        isLoading: isLoadingAppointments,
-        isError: isAppointmentsError,
-        refetch: refetchAppointments
-    } = useGetAppointments(professionalId?.toString() || '');
-    const {
-        data: clients,
-        isLoading: isLoadingClients,
-        isError: isClientsError
-    } = useProfessionalClients(professionalId?.toString() || '');
+    const { data: appointments, isLoading: isLoadingAppointments } = useGetAppointments(professionalId?.toString() || '');
+    const { data: clients } = useProfessionalClients(professionalId?.toString() || '');
 
-    // Auto-refetch when window gains focus to sync session status across tabs
-    useEffect(() => {
-        const onFocus = () => refetchAppointments();
-        window.addEventListener('focus', onFocus);
-        return () => window.removeEventListener('focus', onFocus);
-    }, [refetchAppointments]);
-
-    const appointmentsList = Array.isArray(appointments) ? appointments : [];
-    const clientsList = Array.isArray(clients) ? clients : [];
-    const appointment = appointmentsList.find(a => a.id.toString() === id);
-    const client = clientsList.find(c => Number(c.id) === Number(appointment?.client_id));
+    const appointment = appointments?.find(a => a.id.toString() === id);
+    const client = clients?.find(c => Number(c.id) === Number(appointment?.client_id));
 
     // Fetch client history for medical conditions
     const { data: clientHistory } = useClientHistory(appointment?.client_id);
@@ -74,18 +145,10 @@ export function NutritionConsultationPage() {
     const hasConditions = medicalConditions && medicalConditions !== 'Ninguna' && medicalConditions.trim() !== '';
 
     // Extract goals
-    const clientGoalsList = Array.isArray(clientHistory?.client_goals)
-        ? clientHistory.client_goals
-        : [];
-
-    const clientGoals = clientGoalsList
-        .map(g => g?.goals?.name)
-        .filter(Boolean)
-        .join(', ') || 'Sin objetivos definidos';
+    const clientGoals = clientHistory?.client_goals?.map(g => g.goals.name).join(', ') || 'Sin objetivos definidos';
 
     // Calculate Last Session
-    const clientAppointments =
-        appointmentsList.filter(a => Number(a.client_id) === Number(appointment?.client_id));
+    const clientAppointments = appointments?.filter(a => Number(a.client_id) === Number(appointment?.client_id)) || [];
     
     // Filter for past appointments (excluding current one if needed, or just previous dates)
     // Assuming status 'completed' or just date check. Let's use date check and exclude current.
@@ -98,13 +161,7 @@ export function NutritionConsultationPage() {
         .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
 
     const [seconds, setSeconds] = useState(0);
-    const [isActive, setIsActive] = useState(false);
-    const [pauseStartedAt, setPauseStartedAt] = useState<string | null>(null);
-    const [pauseCount, setPauseCount] = useState(0);
-    const [totalPausedSeconds, setTotalPausedSeconds] = useState(0);
-    const sessionEventsRef = useRef<Array<Record<string, any>>>([]);
-    const autoResumedAppointmentIdRef = useRef<number | null>(null);
-    const autoStartedAppointmentIdRef = useRef<number | null>(null);
+    const [isActive, setIsActive] = useState(true);
     // Notes Sections State
     const [noteSections, setNoteSections] = useState({
         motivo: '',
@@ -116,17 +173,6 @@ export function NutritionConsultationPage() {
     const [activeSection, setActiveSection] = useState<keyof typeof noteSections | null>(null);
     const [isTimerExpanded, setIsTimerExpanded] = useState(false);
     const [showEndConfirmation, setShowEndConfirmation] = useState(false);
-    
-    // Toast notification state
-    const [showWarningToast, setShowWarningToast] = useState(false);
-    const [warningMessage, setWarningMessage] = useState('');
-
-    useEffect(() => {
-        if (showWarningToast) {
-            const timer = setTimeout(() => setShowWarningToast(false), 4000);
-            return () => clearTimeout(timer);
-        }
-    }, [showWarningToast]);
 
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [historyViewed] = useState(false);
@@ -155,10 +201,16 @@ export function NutritionConsultationPage() {
         calf_left_cm: '',
         calf_right_cm: ''
     });
+    const [trainingProfile, setTrainingProfile] = useState<TrainingProfileState>(() => ({ ...DEFAULT_TRAINING_PROFILE }));
+    const [trainingProfileDirty, setTrainingProfileDirty] = useState(false);
+    const [isLoadingTrainingProfile, setIsLoadingTrainingProfile] = useState(false);
+    const [isSyncingTrainingProfile, setIsSyncingTrainingProfile] = useState(false);
+    const [trainingSyncWarning, setTrainingSyncWarning] = useState<string | null>(null);
+    const trainingProfileHydratedRef = useRef(false);
+    const loadedRemoteTrainingProfileRef = useRef<string | null>(null);
 
     const startMutation = useStartConsultation();
     const finishMutation = useFinishConsultation();
-    const updateAppointmentMutation = useUpdateAppointment();
     const saveMetricMutation = useSaveClientMetric();
     const createDraftMutation = useCreateAppointmentDraft();
     const updateDraftMutation = useUpdateAppointmentDraft();
@@ -227,22 +279,47 @@ export function NutritionConsultationPage() {
 
 
     // Plan Duration State
-    const activeGoal =
-        clientGoalsList.find(g => g?.is_primary) || clientGoalsList[0];
+    const activeGoal = clientHistory?.client_goals?.find(g => g.is_primary) || clientHistory?.client_goals?.[0]; // Added activeGoal logic
     const [modalTab, setModalTab] = useState<'history' | 'upcoming'>('history');
     const [selectedAppointmentDate, setSelectedAppointmentDate] = useState<string | null>(null);
     const finishConsultationMutation = finishMutation;
 
+    const updateTrainingProfileField = <K extends keyof TrainingProfileState>(
+        key: K,
+        value: TrainingProfileState[K]
+    ) => {
+        setTrainingProfile((prev) => ({ ...prev, [key]: value }));
+        setTrainingProfileDirty(true);
+    };
+
+    const syncTrainingProfileToBackend = async (force = false): Promise<boolean> => {
+        if (!appointment?.client_id) return true;
+        if (!force && !trainingProfileDirty) return true;
+
+        setIsSyncingTrainingProfile(true);
+        try {
+            await clientInterviewsApi.updateInterview(
+                String(appointment.client_id),
+                buildTrainingInterviewPayload(trainingProfile)
+            );
+            setTrainingSyncWarning(null);
+            setTrainingProfileDirty(false);
+            return true;
+        } catch (error) {
+            setTrainingSyncWarning(
+                'No se pudo sincronizar el contexto de IA Training en este momento. Se mantuvo guardado en el borrador local.'
+            );
+            return false;
+        } finally {
+            setIsSyncingTrainingProfile(false);
+        }
+    };
+
     // Effect to recalculate
     useEffect(() => {
-        if (calculatedTdee > 0 && clientGoalsList.length) {
-            const primaryGoal =
-                clientGoalsList.find(g => g?.is_primary) || clientGoalsList[0];
-            const goalData = primaryGoal?.goals;
-
-            if (!goalData) {
-                return;
-            }
+        if (calculatedTdee > 0 && clientHistory?.client_goals?.length) {
+            const primaryGoal = clientHistory.client_goals.find(g => g.is_primary) || clientHistory.client_goals[0];
+            const goalData = primaryGoal.goals;
             
             let targetCals = calculatedTdee;
 
@@ -278,7 +355,7 @@ export function NutritionConsultationPage() {
                 fats
             });
         }
-    }, [calculatedTdee, clientGoalsList]);
+    }, [calculatedTdee, clientHistory?.client_goals]);
 
     const updateMacro = (type: 'proteins' | 'carbs' | 'fats', delta: number) => {
         setTargetMacros(prev => {
@@ -333,16 +410,9 @@ export function NutritionConsultationPage() {
                     setIsTranscribing(true);
                     transcribeMutation.mutate(audioBlob, {
                         onSuccess: (data) => {
-                            const transcript = (data || '').trim();
-                            if (!transcript) {
-                                setIsTranscribing(false);
-                                setActiveSection(null);
-                                return;
-                            }
-
                             setNoteSections((prev) => ({
                                 ...prev,
-                                [section]: prev[section] + (prev[section] ? ' ' : '') + transcript
+                                [section]: prev[section] + (prev[section] ? ' ' : '') + data
                             }));
                             setIsTranscribing(false);
                             setActiveSection(null);
@@ -379,46 +449,13 @@ export function NutritionConsultationPage() {
 
     // Start consultation automatically if it hasn't started yet
     useEffect(() => {
-        if (!appointment) return;
-        if (appointment.start_date) return;
-        if (startMutation.isPending) return;
-        if (autoStartedAppointmentIdRef.current === appointment.id) return;
-
-        autoStartedAppointmentIdRef.current = appointment.id;
-
         if (appointment && !appointment.start_date && !startMutation.isPending) {
-            const isAnotherSessionActive = appointmentsList.some(
-                a => a.status === 'in_progress' && a.id !== appointment.id
-            );
-
-            if (isAnotherSessionActive) {
-                setWarningMessage('Hay otra sesión en curso. Paúsala o finalízala antes de iniciar esta.');
-                setShowWarningToast(true);
-                return;
-            }
-
-            startMutation.mutate(appointment.id, {
-                onSuccess: (updatedAppointment) => {
-                    setPauseStartedAt(updatedAppointment.paused_at ?? null);
-                    setPauseCount(updatedAppointment.pause_count ?? 0);
-                    setTotalPausedSeconds(updatedAppointment.total_paused_seconds ?? 0);
-                    sessionEventsRef.current = Array.isArray(updatedAppointment.session_events)
-                        ? updatedAppointment.session_events
-                        : [];
-                    setIsActive(updatedAppointment.status === 'in_progress');
-                },
-                onError: () => {
-                    // Allow retry only if start failed.
-                    autoStartedAppointmentIdRef.current = null;
-                },
-            });
+            startMutation.mutate(appointment.id);
         }
-    }, [appointment?.id, appointment?.start_date, startMutation.isPending]);
+    }, [appointment?.id, appointment?.start_date]);
 
     // Draft Retrieval and Creation Logic
-    const parsedAppointmentId = Number(id);
-    const appointmentId = Number.isFinite(parsedAppointmentId) ? parsedAppointmentId : 0;
-    const { data: existingDraft, isLoading: isLoadingDraft } = useGetAppointmentDraft(appointmentId);
+    const { data: existingDraft, isLoading: isLoadingDraft } = useGetAppointmentDraft(Number(id));
 
     // Populate form with existing draft data
     useEffect(() => {
@@ -432,6 +469,15 @@ export function NutritionConsultationPage() {
                 if (state.noteSections) setNoteSections(state.noteSections);
                 if (state.metrics) setMetrics(state.metrics);
                 if (state.targetMacros) setTargetMacros(state.targetMacros);
+                if (state.seconds) setSeconds(state.seconds);
+                if (state.trainingProfile) {
+                    setTrainingProfile(normalizeTrainingProfile(state.trainingProfile));
+                    setTrainingProfileDirty(false);
+                    trainingProfileHydratedRef.current = true;
+                    loadedRemoteTrainingProfileRef.current = appointment?.client_id
+                        ? String(appointment.client_id)
+                        : null;
+                }
 
             } else {
                 // Fallback to legacy fields
@@ -476,7 +522,40 @@ export function NutritionConsultationPage() {
                 }
             }
         }
-    }, [existingDraft]);
+    }, [existingDraft, appointment?.client_id]);
+
+    // Hydrate training profile from training backend when draft does not have it
+    useEffect(() => {
+        const clientId = appointment?.client_id ? String(appointment.client_id) : null;
+        if (!clientId || isLoadingDraft) return;
+
+        const draftTrainingProfile = existingDraft?.json_state?.trainingProfile;
+        if (draftTrainingProfile) {
+            trainingProfileHydratedRef.current = true;
+            loadedRemoteTrainingProfileRef.current = clientId;
+            return;
+        }
+
+        if (loadedRemoteTrainingProfileRef.current === clientId) return;
+
+        loadedRemoteTrainingProfileRef.current = clientId;
+        setIsLoadingTrainingProfile(true);
+
+        clientInterviewsApi
+            .getInterview(clientId)
+            .then((remoteProfile) => {
+                setTrainingProfile(normalizeTrainingProfile(remoteProfile));
+                setTrainingProfileDirty(false);
+                setTrainingSyncWarning(null);
+            })
+            .catch(() => {
+                // No remote interview yet is expected for many clients.
+            })
+            .finally(() => {
+                setIsLoadingTrainingProfile(false);
+                trainingProfileHydratedRef.current = true;
+            });
+    }, [appointment?.client_id, isLoadingDraft, existingDraft?.json_state?.trainingProfile]);
 
     // Create Draft on Entry if not present
     useEffect(() => {
@@ -507,7 +586,8 @@ export function NutritionConsultationPage() {
                         carbs: 0,
                         fats: 0
                     },
-                    seconds: 0
+                    seconds: 0,
+                    trainingProfile: { ...DEFAULT_TRAINING_PROFILE }
                 }
             });
         }
@@ -555,14 +635,28 @@ export function NutritionConsultationPage() {
                         noteSections,
                         metrics, // Saving raw metrics state strings to preserve input state
                         targetMacros,
-                        seconds: stateRef.current.seconds
-                    }
+                        seconds,
+                        trainingProfile
+                    } as AppointmentDraftJsonState
                 }
             });
         }, 2000); // Debounce 2s
 
         return () => clearTimeout(timer);
-    }, [noteSections, metrics, view, targetMacros, appointment?.id]);
+    }, [noteSections, metrics, view, targetMacros, seconds, trainingProfile, appointment?.id]);
+
+    // Debounced sync to training backend. If it fails, keep draft data and show warning.
+    useEffect(() => {
+        if (!appointment?.client_id) return;
+        if (!trainingProfileDirty) return;
+        if (!trainingProfileHydratedRef.current) return;
+
+        const timer = setTimeout(() => {
+            void syncTrainingProfileToBackend();
+        }, 1500);
+
+        return () => clearTimeout(timer);
+    }, [trainingProfile, trainingProfileDirty, appointment?.client_id]);
 
     // Refs for state
     const stateRef = useRef({
@@ -570,7 +664,8 @@ export function NutritionConsultationPage() {
         noteSections,
         metrics,
         targetMacros,
-        seconds
+        seconds,
+        trainingProfile
     });
 
     useEffect(() => {
@@ -579,58 +674,10 @@ export function NutritionConsultationPage() {
             noteSections,
             metrics,
             targetMacros,
-            seconds
+            seconds,
+            trainingProfile
         };
-    }, [view, noteSections, metrics, targetMacros, seconds]);
-
-    useEffect(() => {
-        if (!appointment) return;
-
-        setPauseStartedAt(appointment.paused_at ?? null);
-        setPauseCount(appointment.pause_count ?? 0);
-        setTotalPausedSeconds(appointment.total_paused_seconds ?? 0);
-        sessionEventsRef.current = Array.isArray(appointment.session_events)
-            ? appointment.session_events
-            : [];
-
-        // Calculate correct seconds based on elapsed time if it has started
-        if (appointment.start_date && appointment.status !== 'completed' && appointment.status !== 'cancelled') {
-            const now = new Date();
-            const start = new Date(appointment.start_date);
-            let elapsed = Math.floor((now.getTime() - start.getTime()) / 1000);
-            
-            elapsed -= (appointment.total_paused_seconds ?? 0);
-            
-            if (appointment.status === 'paused' && appointment.paused_at) {
-                const pauseTime = Math.floor((now.getTime() - new Date(appointment.paused_at).getTime()) / 1000);
-                elapsed -= Math.max(0, pauseTime);
-            }
-            
-            setSeconds(Math.max(0, elapsed));
-        }
-
-        setIsActive(appointment.status === 'in_progress');
-    }, [
-        appointment?.id,
-        appointment?.status,
-        appointment?.start_date,
-        appointment?.end_date,
-        appointment?.paused_at,
-        appointment?.pause_count,
-        appointment?.total_paused_seconds,
-        appointment?.session_events,
-    ]);
-
-    const appendSessionEvent = (eventType: 'pause' | 'resume' | 'end') => {
-        const event = {
-            type: eventType,
-            at: new Date().toISOString(),
-            timer_seconds: stateRef.current.seconds,
-        };
-        const nextEvents = [...sessionEventsRef.current, event];
-        sessionEventsRef.current = nextEvents;
-        return nextEvents;
-    };
+    }, [view, noteSections, metrics, targetMacros, seconds, trainingProfile]);
 
     const saveDraft = () => {
         if (!appointment?.id) return;
@@ -670,81 +717,27 @@ export function NutritionConsultationPage() {
                     noteSections: state.noteSections,
                     metrics: state.metrics,
                     targetMacros: state.targetMacros,
-                    seconds: state.seconds
-                }
+                    seconds: state.seconds,
+                    trainingProfile: state.trainingProfile
+                } as AppointmentDraftJsonState
             }
         });
     };
 
-    const handleToggleTimer = () => {
-        if (!appointment?.id || updateAppointmentMutation.isPending) return;
-
-        if (isActive) {
-            const pausedAt = new Date().toISOString();
-            const nextPauseCount = pauseCount + 1;
-            const nextEvents = appendSessionEvent('pause');
-
-            setIsActive(false);
-            setPauseStartedAt(pausedAt);
-            setPauseCount(nextPauseCount);
-
-            updateAppointmentMutation.mutate({
-                id: appointment.id,
-                data: {
-                    status: 'paused',
-                    paused_at: pausedAt,
-                    pause_count: nextPauseCount,
-                    total_paused_seconds: totalPausedSeconds,
-                    session_events: nextEvents,
-                },
-            });
-
-            saveDraft();
-            return;
-        }
-
-        const isAnotherSessionActive = appointmentsList.some(
-            a => a.status === 'in_progress' && a.id !== appointment.id
-        );
-
-        if (isAnotherSessionActive) {
-            setWarningMessage('Hay otra sesión en curso. Paúsala o finalízala antes de reanudar esta.');
-            setShowWarningToast(true);
-            return;
-        }
-
-        const resumedAt = new Date().toISOString();
-        const pausedSeconds = pauseStartedAt
-            ? Math.max(
-                0,
-                Math.floor(
-                    (new Date(resumedAt).getTime() - new Date(pauseStartedAt).getTime()) / 1000
-                )
-            )
-            : 0;
-        const nextTotalPausedSeconds = totalPausedSeconds + pausedSeconds;
-        const nextEvents = appendSessionEvent('resume');
-
-        setIsActive(true);
-        setPauseStartedAt(null);
-        setTotalPausedSeconds(nextTotalPausedSeconds);
-
-        updateAppointmentMutation.mutate({
-            id: appointment.id,
-            data: {
-                status: 'in_progress',
-                paused_at: null,
-                last_resumed_at: resumedAt,
-                pause_count: pauseCount,
-                total_paused_seconds: nextTotalPausedSeconds,
-                session_events: nextEvents,
-            },
-        });
+    const finalizeConsultation = async () => {
+        if (!appointment?.id) return;
 
         saveDraft();
+        await syncTrainingProfileToBackend(true);
+
+        finishConsultationMutation.mutate({
+            id: Number(appointment.id),
+            durationSeconds: seconds,
+            notes: Object.entries(noteSections)
+                .map(([key, value]) => `${key.toUpperCase()}: ${value}`)
+                .join('\n\n')
+        });
     };
-
-
 
     // Timer Tick
     useEffect(() => {
@@ -759,50 +752,21 @@ export function NutritionConsultationPage() {
         return () => clearInterval(interval);
     }, [isActive]);
 
-    // Warning when closing the window/tab and Auto-pausing
+    // Timer Sync (every 3 seconds when active)
+    useEffect(() => {
+        let interval: any = null;
+        if (isActive && appointment?.id) {
+            interval = setInterval(() => {
+                saveDraft();
+            }, 3000);
+        }
+        return () => clearInterval(interval);
+    }, [isActive, appointment?.id]);
+
+    // Warning when closing the window/tab
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
             if (isActive) {
-                // Prepare a synchronous fallback pause request to prevent infinite timers
-                if (appointment?.id) {
-                    const pausedAt = new Date().toISOString();
-                    const stateEvents = sessionEventsRef.current;
-                    const evt = {
-                        type: 'pause',
-                        at: pausedAt,
-                        timer_seconds: seconds,
-                    };
-
-                    const payload = {
-                        status: 'paused',
-                        paused_at: pausedAt,
-                        total_paused_seconds: totalPausedSeconds,
-                        pause_count: pauseCount + 1,
-                        session_events: [...stateEvents, evt],
-                    };
-
-                    // Use fetch with keepalive strictly for unload events
-                    try {
-                        const token = useAuthStore.getState().token || '';
-                        const headers = new Headers();
-                        headers.append("Content-Type", "application/json");
-                        if (token) {
-                            headers.append("Authorization", `Bearer ${token}`);
-                        }
-                        
-                        // Enforce withCredentials equivalence for fetch
-                        fetch(`${import.meta.env.VITE_NUTRITION_API_URL}/v1/appointments/${appointment.id}`, {
-                            method: 'PATCH',
-                            headers: headers,
-                            keepalive: true,
-                            credentials: 'include',
-                            body: JSON.stringify(payload)
-                        });
-                    } catch (err) {
-                        console.error("Failed to auto-pause on unload", err);
-                    }
-                }
-
                 e.preventDefault();
                 e.returnValue = ''; 
             }
@@ -810,132 +774,8 @@ export function NutritionConsultationPage() {
 
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [isActive, appointment?.id, pauseCount, seconds]);
+    }, [isActive]);
 
-
-    // Unmount auto-pause (SPA Navigation)
-    const stateRefs = useRef({
-        appointmentId: appointment?.id,
-        isActive,
-        seconds,
-        totalPausedSeconds,
-        pauseCount,
-        sessionEvents: sessionEventsRef.current
-    });
-
-    useEffect(() => {
-        stateRefs.current = {
-            appointmentId: appointment?.id,
-            isActive,
-            seconds,
-            totalPausedSeconds,
-            pauseCount,
-            sessionEvents: sessionEventsRef.current
-        };
-    }, [appointment?.id, isActive, seconds, totalPausedSeconds, pauseCount]);
-
-    useEffect(() => {
-        return () => {
-            const state = stateRefs.current;
-            if (state.isActive && state.appointmentId) {
-                try {
-                    const pausedAt = new Date().toISOString();
-                    const evt = {
-                        type: 'pause',
-                        at: pausedAt,
-                        timer_seconds: state.seconds,
-                    };
-                    
-                    const payload = {
-                        status: 'paused',
-                        paused_at: pausedAt,
-                        total_paused_seconds: state.totalPausedSeconds,
-                        pause_count: state.pauseCount + 1,
-                        session_events: [...state.sessionEvents, evt],
-                    };
-                    const token = useAuthStore.getState().token || '';
-                    const headers = new Headers();
-                    headers.append("Content-Type", "application/json");
-                    if (token) {
-                        headers.append("Authorization", `Bearer ${token}`);
-                    }
-                    
-                    fetch(`${import.meta.env.VITE_NUTRITION_API_URL}/v1/appointments/${state.appointmentId}`, {
-                        method: 'PATCH',
-                        headers: headers,
-                        keepalive: true,
-                        credentials: 'include',
-                        body: JSON.stringify(payload)
-                    });
-                } catch (err) {
-                    console.error("Failed to auto-pause on unmount", err);
-                }
-            }
-        };
-    }, []);
-
-    // Auto-resume on enter if paused
-    useEffect(() => {
-        if (!appointment?.id) return;
-        if (appointment.status !== 'paused') return;
-        if (autoResumedAppointmentIdRef.current === appointment.id) return;
-
-        autoResumedAppointmentIdRef.current = appointment.id;
-
-        const isAnotherSessionActive = appointmentsList.some(
-            a => a.status === 'in_progress' && a.id !== appointment.id
-        );
-
-        if (isAnotherSessionActive) {
-            setWarningMessage('Hay otra sesión en curso. Paúsala o finalízala antes de reanudar esta.');
-            setShowWarningToast(true);
-            return;
-        }
-
-        const resumedAt = new Date().toISOString();
-        const initialPausedAt = appointment.paused_at;
-        const initialTotalPausedSeconds = appointment.total_paused_seconds ?? 0;
-        
-        const pausedSeconds = initialPausedAt
-            ? Math.max(
-                0,
-                Math.floor(
-                    (new Date(resumedAt).getTime() - new Date(initialPausedAt).getTime()) / 1000
-                )
-            )
-            : 0;
-        const nextTotalPausedSeconds = initialTotalPausedSeconds + pausedSeconds;
-        const resumeEvent = {
-            type: 'resume',
-            at: resumedAt,
-            timer_seconds: seconds,
-        };
-        const nextEvents = [...sessionEventsRef.current, resumeEvent];
-        sessionEventsRef.current = nextEvents;
-
-        setPauseStartedAt(null);
-        setTotalPausedSeconds(nextTotalPausedSeconds);
-        setIsActive(true);
-
-        updateAppointmentMutation.mutate({
-            id: appointment.id,
-            data: {
-                status: 'in_progress',
-                paused_at: null,
-                last_resumed_at: resumedAt,
-                pause_count: appointment.pause_count ?? 0,
-                total_paused_seconds: nextTotalPausedSeconds,
-                session_events: nextEvents,
-            },
-        });
-    }, [
-        appointment?.id,
-        appointment?.status,
-        appointment?.paused_at,
-        appointment?.total_paused_seconds,
-        appointment?.pause_count,
-        seconds
-    ]);
 
     const formatTime = (totalSeconds: number) => {
         const hrs = Math.floor(totalSeconds / 3600);
@@ -960,29 +800,12 @@ export function NutritionConsultationPage() {
         }, 3000);
     };
 
-    if (!professionalId || isLoadingAppointments || isLoadingClients) {
+    if (!professionalId || isLoadingAppointments) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-12 h-12 border-4 border-nutrition-200 border-t-nutrition-600 rounded-full animate-spin" />
                     <p className="text-gray-500 font-medium tracking-wide">Iniciando consulta...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (isAppointmentsError || isClientsError) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <p className="text-gray-900 font-bold text-xl mb-2">No se pudo iniciar la consulta</p>
-                    <p className="text-gray-500 text-sm mb-4">Ocurrió un error cargando la información.</p>
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="px-6 py-2 bg-nutrition-600 text-white rounded-xl shadow-lg"
-                    >
-                        Reintentar
-                    </button>
                 </div>
             </div>
         );
@@ -1006,19 +829,6 @@ export function NutritionConsultationPage() {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-12">
-            <AnimatePresence>
-                {showWarningToast && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-orange-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3"
-                    >
-                        <AlertCircle className="w-5 h-5 shrink-0" />
-                        <span className="font-medium">{warningMessage}</span>
-                    </motion.div>
-                )}
-            </AnimatePresence>
             {/* Header / Top Bar */}
             <header className="bg-white/80 border-b border-gray-100 sticky top-0 z-30 px-6 py-4 shadow-sm backdrop-blur-md">
                 <div className="w-full mx-auto flex items-center justify-between">
@@ -1070,7 +880,7 @@ export function NutritionConsultationPage() {
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    handleToggleTimer();
+                                                    setIsActive(!isActive);
                                                 }}
                                                 className="p-1.5 rounded-full hover:bg-gray-100 text-gray-600 transition-colors"
                                                 title={isActive ? "Pausar" : "Reanudar"}
@@ -1102,37 +912,22 @@ export function NutritionConsultationPage() {
                                 </AnimatePresence>
                             </motion.div>
 
-                            {/* Prolonged Consultation Badge or Paused Info */}
+                            {/* Prolonged Consultation Badge */}
                             <AnimatePresence>
-                                {!isActive && appointment && (appointment.status === 'in_progress' || appointment.status === 'paused') ? (
+                                {seconds >= 1800 && (
                                     <motion.div
                                         initial={{ opacity: 0, y: -10 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: -10 }}
                                         className="absolute top-full left-0 right-0 mt-2 flex justify-center"
                                     >
-                                        <div className="bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-sm whitespace-nowrap">
-                                            <span className="text-[10px] font-medium text-gray-500 max-w-[150px] whitespace-normal text-center leading-tight">
-                                                Puedes abandonar esta pantalla y reanudar la consulta más tarde.
+                                        <div className="bg-orange-50 border border-orange-100 px-3 py-1 rounded-full flex items-center gap-2 shadow-sm whitespace-nowrap">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                                            <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wide">
+                                                Consulta prolongada » {Math.floor(seconds / 60)} min
                                             </span>
                                         </div>
                                     </motion.div>
-                                ) : (
-                                    seconds >= 1800 && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: -10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -10 }}
-                                            className="absolute top-full left-0 right-0 mt-2 flex justify-center"
-                                        >
-                                            <div className="bg-orange-50 border border-orange-100 px-3 py-1 rounded-full flex items-center gap-2 shadow-sm whitespace-nowrap">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
-                                                <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wide">
-                                                    Consulta prolongada » {Math.floor(seconds / 60)} min
-                                                </span>
-                                            </div>
-                                        </motion.div>
-                                    )
                                 )}
                             </AnimatePresence>
                         </div>
@@ -1573,6 +1368,324 @@ export function NutritionConsultationPage() {
                                     </div>
                                 )}
 
+                                <div className="mb-8 rounded-[28px] border border-blue-100 bg-gradient-to-br from-blue-50/70 to-white p-5">
+                                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-4">
+                                        <div>
+                                            <h4 className="text-lg font-bold text-blue-900">Contexto IA Training</h4>
+                                            <p className="text-sm text-blue-700">
+                                                Se guarda automáticamente en borrador y se sincroniza con Training.
+                                            </p>
+                                        </div>
+                                        <div className="text-xs font-semibold text-blue-700">
+                                            {isLoadingTrainingProfile
+                                                ? 'Cargando contexto remoto...'
+                                                : isSyncingTrainingProfile
+                                                    ? 'Sincronizando...'
+                                                    : trainingProfileDirty
+                                                        ? 'Cambios pendientes'
+                                                        : 'Sincronizado'}
+                                        </div>
+                                    </div>
+
+                                    {trainingSyncWarning && (
+                                        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                            {trainingSyncWarning}
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <input
+                                                type="text"
+                                                value={trainingProfile.document_id ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('document_id', e.target.value)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Documento de identidad"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={trainingProfile.phone ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('phone', e.target.value)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Teléfono"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={trainingProfile.emergency_contact_name ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('emergency_contact_name', e.target.value)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Contacto de emergencia"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={trainingProfile.emergency_contact_phone ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('emergency_contact_phone', e.target.value)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Teléfono de emergencia"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={trainingProfile.insurance_provider ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('insurance_provider', e.target.value)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Aseguradora"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={trainingProfile.policy_number ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('policy_number', e.target.value)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Número de póliza"
+                                            />
+                                        </div>
+
+                                        <textarea
+                                            value={trainingProfile.address ?? ''}
+                                            onChange={(e) => updateTrainingProfileField('address', e.target.value)}
+                                            className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                            rows={2}
+                                            placeholder="Dirección"
+                                        />
+
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                            <select
+                                                value={trainingProfile.experience_level ?? 'beginner'}
+                                                onChange={(e) => updateTrainingProfileField('experience_level', e.target.value as any)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                            >
+                                                <option value="beginner">Principiante</option>
+                                                <option value="intermediate">Intermedio</option>
+                                                <option value="advanced">Avanzado</option>
+                                            </select>
+                                            <input
+                                                type="number"
+                                                value={trainingProfile.age ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('age', e.target.value ? Number(e.target.value) : undefined)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Edad"
+                                            />
+                                            <select
+                                                value={trainingProfile.gender ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('gender', (e.target.value || undefined) as any)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                            >
+                                                <option value="">Género</option>
+                                                <option value="male">Masculino</option>
+                                                <option value="female">Femenino</option>
+                                                <option value="other">Otro</option>
+                                                <option value="prefer_not_to_say">Prefiero no decir</option>
+                                            </select>
+                                            <input
+                                                type="text"
+                                                value={trainingProfile.occupation ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('occupation', e.target.value)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Ocupación"
+                                            />
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                value={trainingProfile.weight_kg ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('weight_kg', e.target.value ? Number(e.target.value) : undefined)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Peso (kg)"
+                                            />
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                value={trainingProfile.height_cm ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('height_cm', e.target.value ? Number(e.target.value) : undefined)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Altura (cm)"
+                                            />
+                                            <input
+                                                type="number"
+                                                value={trainingProfile.training_experience_months ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('training_experience_months', e.target.value ? Number(e.target.value) : undefined)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Experiencia (meses)"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <select
+                                                value={trainingProfile.primary_goal ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('primary_goal', (e.target.value || undefined) as any)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                            >
+                                                <option value="">Objetivo principal</option>
+                                                <option value="hypertrophy">Hipertrofia</option>
+                                                <option value="strength">Fuerza</option>
+                                                <option value="power">Potencia</option>
+                                                <option value="endurance">Resistencia</option>
+                                                <option value="fat_loss">Pérdida de grasa</option>
+                                                <option value="general_fitness">Fitness general</option>
+                                            </select>
+                                            <input
+                                                type="text"
+                                                value={joinArrayForInput(trainingProfile.target_muscle_groups as any)}
+                                                onChange={(e) => updateTrainingProfileField('target_muscle_groups', splitCsvToStringArray(e.target.value) as any)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Grupos musculares (coma)"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={trainingProfile.preferred_training_style ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('preferred_training_style', e.target.value)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Estilo preferido"
+                                            />
+                                        </div>
+
+                                        <textarea
+                                            value={trainingProfile.specific_goals_text ?? ''}
+                                            onChange={(e) => updateTrainingProfileField('specific_goals_text', e.target.value)}
+                                            className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                            rows={2}
+                                            placeholder="Objetivos específicos"
+                                        />
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <input
+                                                type="number"
+                                                value={trainingProfile.days_per_week ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('days_per_week', e.target.value ? Number(e.target.value) : undefined)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Días por semana"
+                                            />
+                                            <input
+                                                type="number"
+                                                value={trainingProfile.session_duration_minutes ?? ''}
+                                                onChange={(e) => updateTrainingProfileField('session_duration_minutes', e.target.value ? Number(e.target.value) : undefined)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Duración por sesión (min)"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={joinArrayForInput(trainingProfile.preferred_days)}
+                                                onChange={(e) => updateTrainingProfileField('preferred_days', splitCsvToDayArray(e.target.value))}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Días preferidos 1-7 (coma)"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <select
+                                                value={
+                                                    trainingProfile.has_gym_access === undefined
+                                                        ? 'unknown'
+                                                        : trainingProfile.has_gym_access
+                                                            ? 'yes'
+                                                            : 'no'
+                                                }
+                                                onChange={(e) => {
+                                                    const value =
+                                                        e.target.value === 'unknown'
+                                                            ? undefined
+                                                            : e.target.value === 'yes';
+                                                    updateTrainingProfileField('has_gym_access', value);
+                                                }}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                            >
+                                                <option value="unknown">Acceso a gimnasio (sin definir)</option>
+                                                <option value="yes">Sí</option>
+                                                <option value="no">No</option>
+                                            </select>
+                                            <input
+                                                type="text"
+                                                value={joinArrayForInput(trainingProfile.available_equipment as any)}
+                                                onChange={(e) => updateTrainingProfileField('available_equipment', splitCsvToStringArray(e.target.value) as any)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Equipamiento disponible (coma)"
+                                            />
+                                        </div>
+
+                                        <textarea
+                                            value={trainingProfile.equipment_notes ?? ''}
+                                            onChange={(e) => updateTrainingProfileField('equipment_notes', e.target.value)}
+                                            className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                            rows={2}
+                                            placeholder="Notas de equipamiento"
+                                        />
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <input
+                                                type="text"
+                                                value={joinArrayForInput(trainingProfile.injury_areas as any)}
+                                                onChange={(e) => updateTrainingProfileField('injury_areas', splitCsvToStringArray(e.target.value))}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Zonas de lesión (coma)"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={joinArrayForInput(trainingProfile.excluded_exercises)}
+                                                onChange={(e) => updateTrainingProfileField('excluded_exercises', splitCsvToStringArray(e.target.value))}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Ejercicios excluidos (coma)"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={joinArrayForInput(trainingProfile.medical_conditions)}
+                                                onChange={(e) => updateTrainingProfileField('medical_conditions', splitCsvToStringArray(e.target.value))}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                                placeholder="Condiciones médicas (coma)"
+                                            />
+                                            <select
+                                                value={trainingProfile.exercise_variety ?? 'medium'}
+                                                onChange={(e) => updateTrainingProfileField('exercise_variety', e.target.value as any)}
+                                                className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                            >
+                                                <option value="low">Variedad baja</option>
+                                                <option value="medium">Variedad media</option>
+                                                <option value="high">Variedad alta</option>
+                                            </select>
+                                        </div>
+
+                                        <textarea
+                                            value={trainingProfile.injury_details ?? ''}
+                                            onChange={(e) => updateTrainingProfileField('injury_details', e.target.value)}
+                                            className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                            rows={2}
+                                            placeholder="Detalles de lesión"
+                                        />
+
+                                        <textarea
+                                            value={trainingProfile.mobility_limitations ?? ''}
+                                            onChange={(e) => updateTrainingProfileField('mobility_limitations', e.target.value)}
+                                            className="w-full p-3 rounded-xl border border-blue-100 bg-white text-sm"
+                                            rows={2}
+                                            placeholder="Limitaciones de movilidad"
+                                        />
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <label className="flex items-center gap-2 p-3 rounded-xl border border-blue-100 bg-white text-sm text-gray-700">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={trainingProfile.include_cardio ?? false}
+                                                    onChange={(e) => updateTrainingProfileField('include_cardio', e.target.checked)}
+                                                />
+                                                Incluir cardio
+                                            </label>
+                                            <label className="flex items-center gap-2 p-3 rounded-xl border border-blue-100 bg-white text-sm text-gray-700">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={trainingProfile.include_warmup ?? true}
+                                                    onChange={(e) => updateTrainingProfileField('include_warmup', e.target.checked)}
+                                                />
+                                                Incluir calentamiento
+                                            </label>
+                                            <label className="flex items-center gap-2 p-3 rounded-xl border border-blue-100 bg-white text-sm text-gray-700">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={trainingProfile.include_cooldown ?? false}
+                                                    onChange={(e) => updateTrainingProfileField('include_cooldown', e.target.checked)}
+                                                />
+                                                Incluir enfriamiento
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div 
                                         className="p-4 rounded-3xl bg-gray-50 border border-transparent hover:border-gray-200 focus-within:border-nutrition-400 focus-within:ring-2 focus-within:ring-nutrition-100 transition-all group"
@@ -1651,9 +1764,9 @@ export function NutritionConsultationPage() {
                                                 <p className="text-[10px] text-nutrition-500 font-medium">
                                                     TDEE: {calculatedTdee}
                                                 </p>
-                                                {activeGoal?.goals && (
+                                                {activeGoal && (
                                                     <div className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 ${
-                                                        (activeGoal.goals.adjustment_value || 0) > 0
+                                                        (activeGoal.goals.adjustment_value || 0) > 0 
                                                         ? 'bg-blue-100 text-blue-700' 
                                                         : 'bg-orange-100 text-orange-700'
                                                     }`}>
@@ -1677,7 +1790,7 @@ export function NutritionConsultationPage() {
                                                 <span className="font-bold">{calculatedTdee} kcal</span>
                                             </div>
                                             
-                                            {activeGoal?.goals ? (
+                                            {activeGoal ? (
                                                 <>
                                                     <div className="flex justify-between items-center">
                                                         <span>Ajuste por Objetivo ({activeGoal.goals.name}):</span>
@@ -1763,36 +1876,8 @@ export function NutritionConsultationPage() {
                                     Cancelar
                                 </button>
                                 <button
-                                    onClick={() => {
-                                        const endPausedSeconds = pauseStartedAt
-                                            ? Math.max(
-                                                0,
-                                                Math.floor(
-                                                    (Date.now() - new Date(pauseStartedAt).getTime()) / 1000
-                                                )
-                                            )
-                                            : 0;
-                                        const finalTotalPausedSeconds = totalPausedSeconds + endPausedSeconds;
-                                        const nextEvents = appendSessionEvent('end');
-
-                                        finishConsultationMutation.mutate({ 
-                                            id: Number(appointment.id), 
-                                            durationSeconds: seconds,
-                                            notes: Object.entries(noteSections)
-                                                .map(([key, value]) => `${key.toUpperCase()}: ${value}`)
-                                                .join('\n\n'),
-                                            sessionEvents: nextEvents,
-                                            totalPausedSeconds: finalTotalPausedSeconds,
-                                            pauseCount: pauseCount,
-                                        }, {
-                                            onSuccess: () => {
-                                                navigate('/nutrition/agenda');
-                                            }
-                                        });
-                                        setTotalPausedSeconds(finalTotalPausedSeconds);
-                                        setPauseStartedAt(null);
-                                        setIsActive(false);
-                                        saveDraft();
+                                    onClick={async () => {
+                                        await finalizeConsultation();
                                         setShowEndConfirmation(false);
                                     }}
                                     className="flex-1 py-3.5 rounded-2xl bg-red-500 text-white font-bold shadow-lg shadow-red-200 hover:bg-red-600 transition-colors"

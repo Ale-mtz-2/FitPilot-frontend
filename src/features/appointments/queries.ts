@@ -64,29 +64,8 @@ export const useFinishConsultation = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({
-            id,
-            durationSeconds,
-            notes,
-            sessionEvents,
-            totalPausedSeconds,
-            pauseCount,
-        }: {
-            id: number;
-            durationSeconds: number;
-            notes?: string;
-            sessionEvents?: Array<Record<string, any>>;
-            totalPausedSeconds?: number;
-            pauseCount?: number;
-        }) =>
-            finishConsultation(
-                id,
-                durationSeconds,
-                notes,
-                sessionEvents,
-                totalPausedSeconds,
-                pauseCount,
-            ),
+        mutationFn: ({ id, durationSeconds, notes }: { id: number; durationSeconds: number; notes?: string }) =>
+            finishConsultation(id, durationSeconds, notes),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["appointments"] });
         },

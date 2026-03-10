@@ -7,11 +7,10 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
   helperText?: string;
   icon?: React.ReactNode;
-  rightElement?: React.ReactNode;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, helperText, icon, rightElement, className = '', type, ...props }, ref) => {
+  ({ label, error, helperText, icon, className = '', type, ...props }, ref) => {
     const [showPassword, setShowPassword] = useState(false);
     const isPassword = type === 'password';
 
@@ -53,7 +52,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
           
-          {isPassword && !rightElement && (
+          {isPassword && (
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
@@ -65,12 +64,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
                 <Eye className="w-5 h-5" />
               )}
             </button>
-          )}
-
-          {rightElement && (
-            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center pr-2">
-              {rightElement}
-            </div>
           )}
 
           {/* Focus indicator line */}

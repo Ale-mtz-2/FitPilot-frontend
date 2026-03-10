@@ -1,3 +1,5 @@
+import type { ClientInterviewUpdate } from '@/types/client';
+
 export interface IAppointment {
     id: number;
     professional_id: number;
@@ -12,13 +14,28 @@ export interface IAppointment {
     start_date?: string;
     end_date?: string;
     effective_duration?: number;
-    paused_at?: string | null;
-    last_resumed_at?: string | null;
-    pause_count?: number;
-    total_paused_seconds?: number;
-    session_events?: Array<Record<string, any>> | null;
     type?: 'NUTRITION' | 'TRAINING' | 'BOTH';
     stage?: string;
+}
+
+export interface AppointmentDraftJsonState {
+    stage?: string;
+    noteSections?: {
+        motivo: string;
+        evolucion: string;
+        indicaciones: string;
+        acuerdos: string;
+    };
+    metrics?: Record<string, string>;
+    targetMacros?: {
+        calories: number;
+        proteins: number;
+        carbs: number;
+        fats: number;
+    };
+    seconds?: number;
+    trainingProfile?: ClientInterviewUpdate;
+    [key: string]: any;
 }
 
 export interface CreateAppointmentDraftRequest {
@@ -32,7 +49,7 @@ export interface CreateAppointmentDraftRequest {
         carbs: number;
         fats: number;
     };
-    json_state?: any;
+    json_state?: AppointmentDraftJsonState;
 }
 
 export interface UpdateAppointmentDraftRequest {
@@ -45,5 +62,5 @@ export interface UpdateAppointmentDraftRequest {
         carbs: number;
         fats: number;
     };
-    json_state?: any;
+    json_state?: AppointmentDraftJsonState;
 }

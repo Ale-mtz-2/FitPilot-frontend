@@ -1,9 +1,8 @@
-import { useOutlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function NutritionLayout() {
   const location = useLocation();
-  const element = useOutlet();
 
   return (
     <AnimatePresence mode="wait">
@@ -15,7 +14,7 @@ export function NutritionLayout() {
         transition={{ duration: 0.3, ease: "easeInOut" }}
         className="w-full"
       >
-        {element}
+        <Outlet />
       </motion.div>
     </AnimatePresence>
   );

@@ -12,7 +12,6 @@ import { MetricHistoryModal } from './components/MetricHistoryModal';
 import { ClientMetric, MetricType } from '@/services/client-metrics';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Input } from '@/components/common/Input';
 
 interface Client {
     id: string;
@@ -53,9 +52,6 @@ export function NutritionClientMedicalHistoryPage() {
         tabs?: { label: string; metricType: string }[];
         series?: { metricType: string; label: string; color: string }[];
     } | null>(null);
-
-    const [activeMetricTab, setActiveMetricTab] = useState<'mediciones' | 'calculos' | 'antropometria'>('antropometria');
-    const [activeMedicionTab, setActiveMedicionTab] = useState<'peso' | 'bioimpedancia' | 'pliegues' | 'diametros' | 'perimetros'>('peso');
 
     const getMetricsByType = (type: string, tabs?: { metricType: string }[], series?: { metricType: string }[]): ClientMetric[] => {
         // Special handling for health metrics (BP, Glucose)
@@ -276,28 +272,28 @@ export function NutritionClientMedicalHistoryPage() {
 
             {/* Main Dashboard Header */}
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-                    
-                    {/* Columna Izquierda: Perfil */}
-                    <div className="flex items-center gap-4">
-                        <div className="w-20 h-20 rounded-3xl overflow-hidden bg-gray-100 shadow-sm ring-2 ring-white shrink-0">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                    <div className="flex items-center gap-6">
+                        <div className="w-24 h-24 rounded-3xl overflow-hidden bg-gray-100 shadow-md ring-4 ring-white">
                             <img src={client.avatar} alt={client.firstName} className="w-full h-full object-cover" />
                         </div>
                         <div>
-                            <h1 className="text-xl font-bold text-gray-900 mb-0.5">{client.firstName} {client.lastName}</h1>
-                            <p className="text-sm text-gray-400 mb-2 truncate max-w-[200px]">{client.email}</p>
-                            <div className="flex">
+                            <div className="flex items-center gap-3 mb-1">
+                                <h1 className="text-3xl font-bold text-gray-900">{client.firstName} {client.lastName}</h1>
+                            </div>
+                            <p className="text-gray-400 mb-3">{client.email}</p>
+                            <div className="flex flex-wrap gap-2">
                                 {client.goals?.map((goal: any, index: number) => (
                                     <span 
                                         key={index}
-                                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-sm font-medium ${
                                             goal.isPrimary 
                                                 ? 'bg-nutrition-50 text-nutrition-700 border border-nutrition-100' 
                                                 : 'bg-gray-100 text-gray-700 border border-gray-200'
                                         }`}
                                     >
-                                        <Target className={`w-3.5 h-3.5 ${goal.isPrimary ? 'text-nutrition-600' : 'text-gray-500'}`} />
-                                        {goal.name}
+                                        <Target className={`w-4 h-4 ${goal.isPrimary ? 'text-nutrition-600' : 'text-gray-500'}`} />
+                                        {goal.name} {goal.isPrimary && '(Principal)'}
                                     </span>
                                 ))}
                                 {(!client.goals || client.goals.length === 0) && (
@@ -310,228 +306,39 @@ export function NutritionClientMedicalHistoryPage() {
                         </div>
                     </div>
 
-                    {/* Columna Central: Estado de Salud */}
-                    <div className="flex flex-col justify-center space-y-3 px-4 md:border-x border-gray-100 py-2">
-                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Estado de Salud</h4>
-                        
-                        {/* Lesiones */}
-                        {client.injuries && client.injuries.length > 0 ? (
-                            <div className="flex items-center gap-2 p-2 bg-red-50 rounded-xl border border-red-100 text-red-700 text-sm">
-                                <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-                                <span className="font-medium truncate">{client.injuries.length} Lesiones Activas</span>
+                    {/* Metabolic Stats */}
+                    <div className="flex gap-4 w-full md:w-auto">
+                        <div className="flex-1 md:flex-none p-4 rounded-2xl bg-orange-50/50 border border-orange-100 text-center min-w-[120px]">
+                            <div className="flex items-center justify-center gap-1.5 text-orange-600 mb-1">
+                                <Flame className="w-4 h-4" />
+                                <span className="text-xs font-bold uppercase tracking-wider">TMB (Basal)</span>
                             </div>
-                        ) : (
-                            <div className="flex items-center gap-2 p-2 bg-green-50 rounded-xl border border-green-100 text-green-700 text-sm">
-                                <AlertTriangle className="w-4 h-4 shrink-0 text-green-500" />
-                                <span className="font-medium truncate">Sin lesiones activas</span>
+                            <p className="text-2xl font-black text-gray-900">{client.bmr}</p>
+                            <p className="text-xs text-gray-500">kcal/día</p>
+                        </div>
+                        <div className="flex-1 md:flex-none p-4 rounded-2xl bg-nutrition-50/50 border border-nutrition-100 text-center min-w-[120px]">
+                            <div className="flex items-center justify-center gap-1.5 text-nutrition-600 mb-1">
+                                <Zap className="w-4 h-4" />
+                                <span className="text-xs font-bold uppercase tracking-wider">TDEE (Total)</span>
                             </div>
-                        )}
-                        
-                        {/* Condiciones Médicas */}
-                        <div className="flex items-center gap-2 p-2 bg-purple-50 rounded-xl border border-purple-100 text-purple-700 text-sm">
-                            <AlertCircle className="w-4 h-4 shrink-0 text-purple-500" />
-                            <span className="font-medium truncate" title={client.medicalConditions || 'Sin condiciones registradas'}>
-                                {client.medicalConditions || 'Sin condiciones registradas'}
-                            </span>
+                            <p className="text-2xl font-black text-gray-900">{client.tdee}</p>
+                            <p className="text-xs text-gray-500">kcal/día</p>
                         </div>
                     </div>
-
-                    {/* Columna Derecha: Métricas Metabólicas */}
-                    <div className="flex gap-4 justify-end">
-                        <div className="flex-1 max-w-[140px] p-3 rounded-2xl bg-orange-50/50 border border-orange-100 text-center">
-                            <div className="flex items-center justify-center gap-1.5 text-orange-600 mb-0.5">
-                                <Flame className="w-3.5 h-3.5" />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">TMB (Basal)</span>
-                            </div>
-                            <p className="text-xl font-black text-gray-900">{client.bmr}</p>
-                            <p className="text-[10px] text-gray-500">kcal/día</p>
-                        </div>
-                        <div className="flex-1 max-w-[140px] p-3 rounded-2xl bg-nutrition-50/50 border border-nutrition-100 text-center">
-                            <div className="flex items-center justify-center gap-1.5 text-nutrition-600 mb-0.5">
-                                <Zap className="w-3.5 h-3.5" />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">TDEE (Total)</span>
-                            </div>
-                            <p className="text-xl font-black text-gray-900">{client.tdee}</p>
-                            <p className="text-[10px] text-gray-500">kcal/día</p>
-                        </div>
-                    </div>
-
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* Section 1: Anthropometry & Composition (Visuals) - Spans 3 cols */}
-                <div className="lg:col-span-3 space-y-6">
+                {/* Section 1: Anthropometry & Composition (Visuals) - Spans 2 cols */}
+                <div className="lg:col-span-2 space-y-6">
                     <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-                        {/* Tabs Header */}
-                        <div className="flex space-x-6 mb-6 border-b border-gray-100 overflow-x-auto no-scrollbar">
-                            <button
-                                onClick={() => setActiveMetricTab('mediciones')}
-                                className={`pb-4 px-1 text-sm font-semibold transition-colors whitespace-nowrap ${
-                                    activeMetricTab === 'mediciones'
-                                        ? 'text-nutrition-600 border-b-2 border-nutrition-600'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                            >
-                                Mediciones
-                            </button>
-                            <button
-                                onClick={() => setActiveMetricTab('calculos')}
-                                className={`pb-4 px-1 text-sm font-semibold transition-colors whitespace-nowrap ${
-                                    activeMetricTab === 'calculos'
-                                        ? 'text-nutrition-600 border-b-2 border-nutrition-600'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                            >
-                                Cálculos
-                            </button>
-                            <button
-                                onClick={() => setActiveMetricTab('antropometria')}
-                                className={`pb-4 px-1 text-sm font-semibold transition-colors whitespace-nowrap ${
-                                    activeMetricTab === 'antropometria'
-                                        ? 'text-nutrition-600 border-b-2 border-nutrition-600'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                            >
-                                Antropometría y Composición
-                            </button>
+                        <div className="flex items-center gap-2 text-blue-600 font-bold text-lg mb-6">
+                            <Scale className="w-6 h-6" />
+                            <h3>Antropometría y Composición</h3>
                         </div>
 
-                        {activeMetricTab === 'mediciones' && (
-                            <div className="flex flex-col md:flex-row gap-6 animate-in fade-in duration-300">
-                                {/* Sidebar Navigation */}
-                                <div className="w-full md:w-max shrink-0 flex flex-col space-y-1">
-                                    <button
-                                        onClick={() => setActiveMedicionTab('peso')}
-                                        className={`px-4 py-3 text-left rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
-                                            activeMedicionTab === 'peso'
-                                                ? 'bg-nutrition-50 text-nutrition-700 border border-nutrition-100'
-                                                : 'text-gray-600 hover:bg-gray-50'
-                                        }`}
-                                    >
-                                        Peso y Estatura
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveMedicionTab('bioimpedancia')}
-                                        className={`px-4 py-3 text-left rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
-                                            activeMedicionTab === 'bioimpedancia'
-                                                ? 'bg-nutrition-50 text-nutrition-700 border border-nutrition-100'
-                                                : 'text-gray-600 hover:bg-gray-50'
-                                        }`}
-                                    >
-                                        Bioimpedancia
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveMedicionTab('pliegues')}
-                                        className={`px-4 py-3 text-left rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
-                                            activeMedicionTab === 'pliegues'
-                                                ? 'bg-nutrition-50 text-nutrition-700 border border-nutrition-100'
-                                                : 'text-gray-600 hover:bg-gray-50'
-                                        }`}
-                                    >
-                                        Pliegues
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveMedicionTab('diametros')}
-                                        className={`px-4 py-3 text-left rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
-                                            activeMedicionTab === 'diametros'
-                                                ? 'bg-nutrition-50 text-nutrition-700 border border-nutrition-100'
-                                                : 'text-gray-600 hover:bg-gray-50'
-                                        }`}
-                                    >
-                                        Diámetros
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveMedicionTab('perimetros')}
-                                        className={`px-4 py-3 text-left rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
-                                            activeMedicionTab === 'perimetros'
-                                                ? 'bg-nutrition-50 text-nutrition-700 border border-nutrition-100'
-                                                : 'text-gray-600 hover:bg-gray-50'
-                                        }`}
-                                    >
-                                        Perímetros
-                                    </button>
-                                </div>
-
-                                {/* Content Area */}
-                                <div className="flex-1 bg-gray-50 rounded-2xl border border-gray-100 p-6 min-h-[400px]">
-                                    {activeMedicionTab === 'peso' && (
-                                        <div className="animate-in fade-in duration-300">
-                                            <div className="flex items-center gap-3 mb-6">
-                                                <div className="p-2 bg-nutrition-100 text-nutrition-600 rounded-lg">
-                                                    <Scale className="w-5 h-5" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-lg font-bold text-gray-900">Peso y Estatura</h4>
-                                                    <p className="text-sm text-gray-500">Métricas base corporales</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                                                <Input
-                                                    label="Peso Corporal"
-                                                    type="number"
-                                                    placeholder="Ej. 75.5"
-                                                    rightElement={<span className="text-gray-400 text-sm font-medium mr-3">kg</span>}
-                                                />
-                                                <Input
-                                                    label="Estatura"
-                                                    type="number"
-                                                    placeholder="Ej. 175"
-                                                    rightElement={<span className="text-gray-400 text-sm font-medium mr-3">cm</span>}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                    {activeMedicionTab === 'bioimpedancia' && (
-                                        <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 animate-in fade-in duration-300">
-                                            <Zap className="w-10 h-10 mb-4 text-gray-400" />
-                                            <h4 className="text-lg font-bold text-gray-900 mb-2">Análisis de Bioimpedancia</h4>
-                                            <p className="max-w-md">Valores obtenidos mediante básculas de bioimpedancia eléctrica, como porcentaje de grasa, agua corporal y masa muscular.</p>
-                                        </div>
-                                    )}
-                                    {activeMedicionTab === 'pliegues' && (
-                                        <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 animate-in fade-in duration-300">
-                                            <AlertCircle className="w-10 h-10 mb-4 text-gray-400" />
-                                            <h4 className="text-lg font-bold text-gray-900 mb-2">Pliegues Cutáneos</h4>
-                                            <p className="max-w-md">Medición de pliegues (bicipital, tricipital, subescapular, suprailíaco, etc.) para estimar el porcentaje de grasa corporal.</p>
-                                        </div>
-                                    )}
-                                    {activeMedicionTab === 'diametros' && (
-                                        <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 animate-in fade-in duration-300">
-                                            <Target className="w-10 h-10 mb-4 text-gray-400" />
-                                            <h4 className="text-lg font-bold text-gray-900 mb-2">Diámetros Óseos</h4>
-                                            <p className="max-w-md">Registro de medidas óseas como diámetro biacromial, bicrestal, humeral y femoral para determinar la complexión física.</p>
-                                        </div>
-                                    )}
-                                    {activeMedicionTab === 'perimetros' && (
-                                        <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 animate-in fade-in duration-300">
-                                            <Ruler className="w-10 h-10 mb-4 text-gray-400" />
-                                            <h4 className="text-lg font-bold text-gray-900 mb-2">Perímetros</h4>
-                                            <p className="max-w-md">Mediciones de circunferencias (cintura, cadera, brazo, muslo, etc.) útiles para evaluar distribución de masa corporal.</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeMetricTab === 'calculos' && (
-                            <div className="py-12 text-center text-gray-500 bg-gray-50 rounded-2xl border border-gray-100 border-dashed">
-                                <Activity className="w-8 h-8 mx-auto mb-3 text-gray-400" />
-                                <p className="font-medium text-gray-900">Módulo de Cálculos</p>
-                                <p className="text-sm mt-1">Aquí se visualizarán los cálculos y proyecciones de composición corporal.</p>
-                            </div>
-                        )}
-
-                        {activeMetricTab === 'antropometria' && (
-                            <div className="animate-in fade-in duration-300">
-                                <div className="flex items-center gap-2 text-blue-600 font-bold text-lg mb-6">
-                                    <Scale className="w-6 h-6" />
-                                    <h3>Antropometría y Composición</h3>
-                                </div>
-
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                             {/* Weight Card */}
                             <div 
                                 onClick={() => setSelectedMetric({ type: 'weight', title: 'Peso Corporal', unit: client.metrics?.weightUnit })}
@@ -710,8 +517,6 @@ export function NutritionClientMedicalHistoryPage() {
                                 </div>
                             </div>
                         </div>
-                            </div>
-                        )}
                     </div>
 
                     {/* Section 2: Health & Safety (Critical) */}

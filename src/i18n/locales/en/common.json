@@ -8,6 +8,7 @@
     "clients": "Clients",
     "exercises": "Exercises",
     "templates": "Templates",
+    "trainingClientPlans": "Client Plans",
     "aiGenerator": "AI Generator",
     "settings": "Settings",
     "nutrition": "Nutrition",
@@ -21,6 +22,38 @@
     "overview": "Overview",
     "builder": "Builder",
     "templates": "Templates"
+  },
+  "clientPlansPage": {
+    "title": "Client Plans",
+    "subtitle": "Unified view of training and nutrition plans by client",
+    "searchClient": "Search by client",
+    "searchPlaceholder": "Type to filter clients",
+    "clearFilter": "Clear",
+    "allClients": "All clients",
+    "unknownClient": "Client #{{clientId}}",
+    "emptyTitle": "No clients with plans",
+    "emptyDescription": "Clients with assigned training plans or nutrition menus will appear here.",
+    "noResults": "No matching clients found",
+    "sections": {
+      "training": "Training",
+      "nutrition": "Nutrition"
+    },
+    "training": {
+      "count_one": "{{count}} assigned program",
+      "count_other": "{{count}} assigned programs",
+      "empty": "No assigned programs",
+      "more_one": "+ {{count}} more",
+      "more_other": "+ {{count}} more",
+      "openLatest": "Open latest program"
+    },
+    "nutrition": {
+      "count_one": "{{count}} assigned menu",
+      "count_other": "{{count}} assigned menus",
+      "empty": "No assigned menus",
+      "more_one": "+ {{count}} more",
+      "more_other": "+ {{count}} more",
+      "viewWeekly": "View weekly planning"
+    }
   },
   "clientNav": {
     "summary": "Summary",

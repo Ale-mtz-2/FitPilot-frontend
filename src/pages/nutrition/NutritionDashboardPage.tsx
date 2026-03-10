@@ -53,26 +53,10 @@ export function NutritionDashboardPage() {
     // Use professional ID from context or fallback
     const professionalId = professional?.sub || user?.id;
     const { data: realClients } = useProfessionalClients(professionalId?.toString() || '');
-    const { data: apiAppointments, isLoading: isLoadingAppointments, refetch: refetchAppointments } = useGetAppointments(professionalId?.toString() || '');
-
-    // Refetch when the window gains focus to get the latest status of appointments
-    // This solves the issue of a consultation started in another tab not showing as 'in_progress' here immediately.
-    useEffect(() => {
-        const onFocus = () => {
-            refetchAppointments();
-        };
-
-        window.addEventListener('focus', onFocus);
-        return () => window.removeEventListener('focus', onFocus);
-    }, [refetchAppointments]);
+    const { data: apiAppointments, isLoading: isLoadingAppointments } = useGetAppointments(professionalId?.toString() || '');
 
     const [showSuccessToast, setShowSuccessToast] = useState(false);
     const [toastMessage] = useState('');
-    const [showWarningToast, setShowWarningToast] = useState(false);
-    const [warningMessage, setWarningMessage] = useState('');
-
-    const activeAppointment = apiAppointments?.find(a => a.status === 'in_progress');
-    const activeAppointmentId = activeAppointment ? activeAppointment.id : null;
 
     // Derived appointments for the UI
     const appointments: Appointment[] = (apiAppointments || []).map(apiApp => {
@@ -107,13 +91,6 @@ export function NutritionDashboardPage() {
         }
     }, [showSuccessToast]);
 
-    useEffect(() => {
-        if (showWarningToast) {
-            const timer = setTimeout(() => setShowWarningToast(false), 4000);
-            return () => clearTimeout(timer);
-        }
-    }, [showWarningToast]);
-
     return (
         <div className="max-w-7xl mx-auto space-y-8 pb-12">
             <AnimatePresence>
@@ -126,17 +103,6 @@ export function NutritionDashboardPage() {
                     >
                         <CheckCircle className="w-5 h-5" />
                         <span className="font-medium">{toastMessage}</span>
-                    </motion.div>
-                )}
-                {showWarningToast && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -20, x: "-50%" }}
-                        animate={{ opacity: 1, y: 0, x: "-50%" }}
-                        exit={{ opacity: 0, y: -20, x: "-50%" }}
-                        className="fixed top-6 left-1/2 z-50 flex items-center gap-3 bg-orange-500 text-white px-6 py-3 rounded-full shadow-lg shadow-orange-200"
-                    >
-                        <Clock className="w-5 h-5" />
-                        <span className="font-medium">{warningMessage}</span>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -262,13 +228,7 @@ export function NutritionDashboardPage() {
                             ))
                         ) : todayAppointments.length > 0 ? (
                             todayAppointments.map((appt) => (
-                                <AppointmentListItem 
-                                    key={appt.id} 
-                                    appt={appt} 
-                                    activeAppointmentId={activeAppointmentId}
-                                    setWarningMessage={setWarningMessage}
-                                    setShowWarningToast={setShowWarningToast}
-                                />
+                                <AppointmentListItem key={appt.id} appt={appt} />
                             ))
                         ) : (
                             <div className="bg-gray-50/50 border border-dashed border-gray-200 rounded-2xl p-8 text-center text-gray-500">
@@ -293,13 +253,7 @@ export function NutritionDashboardPage() {
                             ))
                         ) : tomorrowAppointments.length > 0 ? (
                             tomorrowAppointments.map((appt) => (
-                                <AppointmentListItem 
-                                    key={appt.id} 
-                                    appt={appt} 
-                                    activeAppointmentId={activeAppointmentId}
-                                    setWarningMessage={setWarningMessage}
-                                    setShowWarningToast={setShowWarningToast}
-                                />
+                                <AppointmentListItem key={appt.id} appt={appt} />
                             ))
                         ) : (
                             <div className="bg-gray-50/50 border border-dashed border-gray-200 rounded-2xl p-8 text-center text-gray-500">
@@ -320,17 +274,7 @@ export function NutritionDashboardPage() {
     );
 }
 
-function AppointmentListItem({ 
-    appt,
-    activeAppointmentId,
-    setWarningMessage,
-    setShowWarningToast
-}: { 
-    appt: Appointment;
-    activeAppointmentId: number | null;
-    setWarningMessage: (msg: string) => void;
-    setShowWarningToast: (show: boolean) => void;
-}) {
+function AppointmentListItem({ appt }: { appt: Appointment }) {
     return (
         <motion.div
             initial={{ x: -20, opacity: 0 }}
@@ -377,20 +321,13 @@ function AppointmentListItem({
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => {
-                            if (activeAppointmentId && activeAppointmentId !== appt.id) {
-                                setWarningMessage('Hay una sesión en curso. Necesita pausarse o finalizarse para poder iniciar otra sesión.');
-                                setShowWarningToast(true);
-                            } else {
-                                window.open(`/nutrition/consultation/${appt.id}`, '_blank');
-                            }
-                        }}
+                    <Link
+                        to={`/nutrition/consultation/${appt.id}`}
                         className="opacity-0 group-hover:opacity-100 px-4 py-2 bg-nutrition-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-nutrition-100 hover:bg-nutrition-700 transition-all flex items-center gap-2"
                     >
                         <Play className="w-3 h-3 fill-current" />
                         Iniciar sesión
-                    </button>
+                    </Link>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {appt.meeting_link && (
                             <a
