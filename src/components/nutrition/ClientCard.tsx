@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Check, ChevronRight, Calendar, Copy, Dumbbell, Utensils } from 'lucide-react';
 
@@ -15,6 +15,17 @@ interface ClientCardProps {
 
 export function ClientCard({ image, clientName, clientLastName, nextAppointment, activationUrl, serviceType, services, onAction }: ClientCardProps) {
   const [copied, setCopied] = useState(false);
+  const fallbackAvatar = useMemo(
+    () =>
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(`${clientName} ${clientLastName}`.trim() || 'Cliente')}&background=random&size=128`,
+    [clientLastName, clientName],
+  );
+  const normalizedImage = image && image !== 'null' && image !== 'undefined' ? image : fallbackAvatar;
+  const [currentImage, setCurrentImage] = useState(normalizedImage);
+
+  useEffect(() => {
+    setCurrentImage(normalizedImage);
+  }, [normalizedImage]);
 
   const handleCopyActivationUrl = async () => {
     if (!activationUrl) return;
@@ -67,9 +78,10 @@ export function ClientCard({ image, clientName, clientLastName, nextAppointment,
             <div className="absolute top-0 right-0 w-16 h-16 bg-nutrition-100 rounded-full blur-xl opacity-60 translate-x-4 -translate-y-4" />
             
             <img 
-                src={image} 
+                src={currentImage} 
                 alt={clientName} 
                 className="w-full h-full object-cover rounded-2xl relative z-10"
+                onError={() => setCurrentImage(fallbackAvatar)}
             />
         </div>
       </div>

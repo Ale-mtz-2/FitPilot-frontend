@@ -14,6 +14,11 @@ export interface IAppointment {
     start_date?: string;
     end_date?: string;
     effective_duration?: number;
+    paused_at?: string | null;
+    last_resumed_at?: string | null;
+    pause_count?: number;
+    total_paused_seconds?: number;
+    session_events?: Array<Record<string, any>> | null;
     type?: 'NUTRITION' | 'TRAINING' | 'BOTH';
     stage?: string;
 }

@@ -36,18 +36,36 @@ export const updateAppointment = async (id: number, appointmentData: Partial<IAp
 };
 
 export const startConsultation = async (id: number): Promise<IAppointment> => {
+    const now = new Date().toISOString();
     return updateAppointment(id, {
-        start_date: new Date().toISOString(),
+        start_date: now,
+        last_resumed_at: now,
+        paused_at: null,
+        pause_count: 0,
+        total_paused_seconds: 0,
+        session_events: [{ type: 'start', at: now }],
         status: 'in_progress'
     });
 };
 
-export const finishConsultation = async (id: number, durationSeconds: number, notes?: string): Promise<IAppointment> => {
+export const finishConsultation = async (
+    id: number,
+    durationSeconds: number,
+    notes?: string,
+    sessionEvents?: Array<Record<string, any>>,
+    totalPausedSeconds?: number,
+    pauseCount?: number
+): Promise<IAppointment> => {
+    const now = new Date().toISOString();
     return updateAppointment(id, {
-        end_date: new Date().toISOString(),
+        end_date: now,
         effective_duration: durationSeconds,
         status: 'completed',
-        notes: notes
+        notes: notes,
+        session_events: sessionEvents,
+        total_paused_seconds: totalPausedSeconds,
+        pause_count: pauseCount,
+        paused_at: null
     });
 };
 

@@ -211,6 +211,9 @@ export function ProfileAvatarUploader({
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const dragStartCoords = useRef<{ x: number; y: number } | null>(null);
+    const dragStartOffsets = useRef<{ x: number; y: number } | null>(null);
 
     useEffect(() => {
         setDisplayImage(imageUrl ?? null);
@@ -364,6 +367,45 @@ export function ProfileAvatarUploader({
         }
     };
 
+    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        setIsDragging(true);
+        dragStartCoords.current = { x: e.clientX, y: e.clientY };
+        dragStartOffsets.current = { x: offsetX, y: offsetY };
+        e.currentTarget.setPointerCapture(e.pointerId);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!isDragging || !dragStartCoords.current || !dragStartOffsets.current || !draft || !cropRect) return;
+
+        const deltaX = e.clientX - dragStartCoords.current.x;
+        const deltaY = e.clientY - dragStartCoords.current.y;
+
+        const scale = PREVIEW_SIZE / cropRect.side;
+        const maxX = Math.max(0, (draft.naturalWidth - cropRect.side) / 2);
+        const maxY = Math.max(0, (draft.naturalHeight - cropRect.side) / 2);
+
+        let newOffsetX = dragStartOffsets.current.x;
+        if (maxX > 0) {
+            newOffsetX -= (deltaX * 100) / (maxX * scale);
+        }
+
+        let newOffsetY = dragStartOffsets.current.y;
+        if (maxY > 0) {
+            newOffsetY -= (deltaY * 100) / (maxY * scale);
+        }
+
+        setOffsetX(clamp(Math.round(newOffsetX), -100, 100));
+        setOffsetY(clamp(Math.round(newOffsetY), -100, 100));
+    };
+
+    const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!isDragging) return;
+        setIsDragging(false);
+        dragStartCoords.current = null;
+        dragStartOffsets.current = null;
+        e.currentTarget.releasePointerCapture(e.pointerId);
+    };
+
     return (
         <div className="flex flex-col items-center text-center">
             <div className="relative mb-4">
@@ -379,6 +421,7 @@ export function ProfileAvatarUploader({
                                 src={displayImage}
                                 alt="Foto de perfil"
                                 className="w-full h-full object-cover"
+                                onError={() => setDisplayImage(null)}
                             />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-white text-3xl font-bold">
@@ -440,7 +483,15 @@ export function ProfileAvatarUploader({
                     <div className="space-y-5">
                         <div className="flex flex-col lg:flex-row gap-5">
                             <div className="mx-auto lg:mx-0">
-                                <div className="relative w-72 h-72 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100">
+                                <div
+                                    className={`relative w-72 h-72 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 touch-none select-none ${
+                                        isDragging ? 'cursor-grabbing' : 'cursor-grab'
+                                    }`}
+                                    onPointerDown={handlePointerDown}
+                                    onPointerMove={handlePointerMove}
+                                    onPointerUp={handlePointerUp}
+                                    onPointerCancel={handlePointerUp}
+                                >
                                     <img
                                         src={draft.src}
                                         alt="Previsualización de recorte"
@@ -448,7 +499,7 @@ export function ProfileAvatarUploader({
                                         style={previewStyle}
                                         draggable={false}
                                     />
-                                    <div className="absolute inset-0 ring-1 ring-inset ring-black/5" />
+                                    <div className="absolute inset-0 ring-1 ring-inset ring-black/5 pointer-events-none" />
                                 </div>
                             </div>
 
@@ -552,6 +603,7 @@ export function ProfileAvatarUploader({
                                     src={displayImage}
                                     alt="Foto de perfil ampliada"
                                     className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                                    onError={() => setDisplayImage(null)}
                                 />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-white text-6xl font-light">
@@ -580,6 +632,7 @@ export function ProfileAvatarUploader({
                                 src={displayImage}
                                 alt="Foto de perfil ampliada"
                                 className="w-full h-full object-cover"
+                                onError={() => setDisplayImage(null)}
                             />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-white text-6xl font-light">
