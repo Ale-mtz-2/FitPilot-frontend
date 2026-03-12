@@ -10,7 +10,6 @@ import { MicrocycleKanbanBoard } from '../components/mesocycle/MicrocycleKanbanB
 import { ExerciseConfigData } from '../components/mesocycle/ExerciseConfigModal';
 import { useMesocycleStore } from '../store/mesocycleStore';
 import { useAuthStore } from '../store/newAuthStore';
-import { useProfessionalClients } from '../features/professional-clients/queries';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -109,8 +108,6 @@ export function MesocycleEditorPage() {
     : aiAccess.reason === 'missing_trainer_role'
       ? t('ai:page.trainerRoleRequired')
       : '';
-  const professionalId = user?.id || '';
-  const { data: nutritionClients = [] } = useProfessionalClients(professionalId);
   const {
     currentMacrocycle,
     mesocycles,
