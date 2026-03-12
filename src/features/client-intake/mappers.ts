@@ -35,6 +35,13 @@ const parseOptionalNumber = (rawValue: string): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+const normalizeDateInput = (rawValue: string | null | undefined): string => {
+  if (!rawValue) return '';
+  const trimmed = rawValue.trim();
+  if (!trimmed) return '';
+  return trimmed.length >= 10 ? trimmed.slice(0, 10) : trimmed;
+};
+
 const resolveInjuryStatus = (status: string | null | undefined): InjuryStatus => {
   if (status === 'active' || status === 'recovered' || status === 'chronic') {
     return status;
@@ -76,6 +83,7 @@ export const mapHistoryToIntakeForm = (
 
   return {
     ...initial,
+    date_of_birth: normalizeDateInput(history.date_of_birth),
     goal_ids: uniqueNumberArray((history.client_goals ?? []).map((goal) => goal.goal_id)),
     allergen_ids: uniqueNumberArray(
       (history.client_allergens ?? []).map((allergen) => allergen.allergen_id),
@@ -142,6 +150,7 @@ export const mapFormToOnboardingPayload = (
 
   return {
     user_id: userId,
+    date_of_birth: normalizeDateInput(form.date_of_birth),
     goals: uniqueNumberArray(form.goal_ids).map((id) => ({ id })),
     allergens: uniqueNumberArray(form.allergen_ids).map((id) => ({ id })),
     ...(metrics ? { metrics } : {}),

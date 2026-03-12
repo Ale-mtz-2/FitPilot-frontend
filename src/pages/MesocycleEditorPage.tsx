@@ -849,9 +849,9 @@ export function MesocycleEditorPage() {
             </h2>
           </div>
           <form className="p-6 space-y-4">
-            {/* Row 1: Name, Objective, Client */}
+            {/* Row 1: Name, Objective */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pb-4 border-b border-gray-100">
-              <div className="md:col-span-2">
+              <div className="md:col-span-3">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Nombre del programa</label>
                 <input
                   {...register('name')}
@@ -874,24 +874,6 @@ export function MesocycleEditorPage() {
                   <option value="fat_loss">Pérdida de grasa</option>
                   <option value="general_fitness">Fitness general</option>
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Cliente</label>
-                <select
-                  {...register('client_id')}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                >
-                  <option value="">Plantilla (sin cliente)</option>
-                  {nutritionClients.map((client) => (
-                    <option key={client.id} value={String(client.id)}>
-                      {`${client.name || ''} ${client.lastname || ''}`.trim() || client.email || `Cliente ${client.id}`}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-gray-500">
-                  Si seleccionas un cliente, el programa quedará asignado. Si no, se guarda como plantilla reusable.
-                </p>
               </div>
             </div>
 

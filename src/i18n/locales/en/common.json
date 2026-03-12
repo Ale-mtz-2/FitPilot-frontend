@@ -14,14 +14,9 @@
     "nutrition": "Nutrition",
     "nutritionClients": "Clients",
     "nutritionCreateDiet": "Create New Diet",
-    "nutritionMealBuilder": "Meal Builder",
+    "nutritionMenus": "Menus",
     "clientsMenus": "Client Menus",
     "clientPlans": "Client Plans"
-  },
-  "mealPlans": {
-    "overview": "Overview",
-    "builder": "Builder",
-    "templates": "Templates"
   },
   "clientPlansPage": {
     "title": "Client Plans",

@@ -22,9 +22,6 @@ import { NutritionClientIntakePage } from './pages/nutrition/NutritionClientInta
 import { ProfilePage } from './pages/ProfilePage';
 import { AuthLayout } from './components/layout/AuthLayout';
 import { MealPlansLayout } from './pages/nutrition/meal-plans/MealPlansLayout';
-import { MealOverviewPage } from './pages/nutrition/meal-plans/MealOverviewPage';
-import { MealBuilderPage } from './pages/nutrition/meal-plans/MealBuilderPage';
-import { MealTemplatesPage } from './pages/nutrition/meal-plans/MealTemplatesPage';
 import { MenuCreationPage } from './pages/nutrition/meal-plans/MenuCreationPage';
 import { ReusableMenusPage } from './pages/nutrition/meal-plans/ReusableMenusPage';
 import { ClientWeeklyMenuView } from './pages/nutrition/meal-plans/ClientWeeklyMenuView';
@@ -377,9 +374,9 @@ function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<MealOverviewPage />} />
-            <Route path="builder" element={<MealBuilderPage />} />
-            <Route path="templates" element={<MealTemplatesPage />} />
+            <Route index element={<Navigate to="reusable-menus" replace />} />
+            <Route path="builder" element={<Navigate to="/nutrition/meal-plans/reusable-menus" replace />} />
+            <Route path="templates" element={<Navigate to="/nutrition/meal-plans/reusable-menus" replace />} />
             <Route path="create-menu" element={<MenuCreationPage />} />
             <Route path="reusable-menus" element={<ReusableMenusPage />} />
             <Route path="clients-menus/weekly-view/:clientId" element={<ClientWeeklyMenuView />} />

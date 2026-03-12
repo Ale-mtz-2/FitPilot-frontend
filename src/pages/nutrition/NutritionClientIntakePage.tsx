@@ -31,10 +31,32 @@ import { getApiErrorMessage } from '@/utils/apiError';
 const INTAKE_STEPS = [
   { id: 'goals', label: 'Objetivos' },
   { id: 'allergens', label: 'Alergenos' },
+  { id: 'personal', label: 'Datos personales' },
   { id: 'metrics', label: 'Metricas base' },
   { id: 'preferences', label: 'Preferencias' },
   { id: 'medical', label: 'Medico y notas' },
 ] as const;
+
+const validateDateOfBirth = (dateOfBirth: string): string | null => {
+  const normalized = dateOfBirth.trim();
+  if (!normalized) {
+    return 'La fecha de nacimiento es obligatoria.';
+  }
+
+  const parsedDate = new Date(`${normalized}T00:00:00`);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return 'La fecha de nacimiento no es valida.';
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (parsedDate > today) {
+    return 'La fecha de nacimiento no puede ser futura.';
+  }
+
+  return null;
+};
 
 export function NutritionClientIntakePage() {
   const { clientId } = useParams<{ clientId: string }>();
@@ -117,6 +139,17 @@ export function NutritionClientIntakePage() {
   const loadError = clientHistoryError || goalsError || allergensError;
   const hasLoadError = isClientHistoryError || isGoalsError || isAllergensError;
   const isLastStep = stepIndex === INTAKE_STEPS.length - 1;
+  const dateOfBirthError = useMemo(
+    () => validateDateOfBirth(formState.date_of_birth),
+    [formState.date_of_birth],
+  );
+  const stepValidationError = useMemo(() => {
+    if (INTAKE_STEPS[stepIndex]?.id === 'personal') {
+      return dateOfBirthError;
+    }
+
+    return null;
+  }, [stepIndex, dateOfBirthError]);
 
   const toggleGoal = (goalId: number) => {
     setFormState((previous) => {
@@ -202,12 +235,26 @@ export function NutritionClientIntakePage() {
   };
 
   const handlePrimaryAction = async () => {
+    if (!isLastStep && stepValidationError) {
+      toast.error(stepValidationError);
+      return;
+    }
+
     if (!isLastStep) {
       setStepIndex((previous) => Math.min(previous + 1, INTAKE_STEPS.length - 1));
       return;
     }
 
     if (!isValidClientId) return;
+
+    if (dateOfBirthError) {
+      toast.error(dateOfBirthError);
+      const personalStepIndex = INTAKE_STEPS.findIndex((step) => step.id === 'personal');
+      if (personalStepIndex >= 0) {
+        setStepIndex(personalStepIndex);
+      }
+      return;
+    }
 
     try {
       const payload = mapFormToOnboardingPayload(numericClientId, formState);
@@ -308,7 +355,13 @@ export function NutritionClientIntakePage() {
               <button
                 key={step.id}
                 type="button"
-                onClick={() => setStepIndex(index)}
+                onClick={() => {
+                  if (index <= stepIndex || !stepValidationError) {
+                    setStepIndex(index);
+                    return;
+                  }
+                  toast.error(stepValidationError);
+                }}
                 className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
                   isActive
                     ? 'border-nutrition-500 bg-nutrition-50 text-nutrition-700'
@@ -388,6 +441,28 @@ export function NutritionClientIntakePage() {
 
         {stepIndex === 2 && (
           <section className="space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900">Datos personales</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                type="date"
+                label="Fecha de nacimiento"
+                value={formState.date_of_birth}
+                onChange={(event) =>
+                  setFormState((previous) => ({
+                    ...previous,
+                    date_of_birth: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            {dateOfBirthError && (
+              <p className="text-sm text-red-600">{dateOfBirthError}</p>
+            )}
+          </section>
+        )}
+
+        {stepIndex === 3 && (
+          <section className="space-y-4">
             <h2 className="text-lg font-semibold text-gray-900">Metricas base</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
@@ -418,7 +493,7 @@ export function NutritionClientIntakePage() {
           </section>
         )}
 
-        {stepIndex === 3 && (
+        {stepIndex === 4 && (
           <section className="space-y-6">
             <h2 className="text-lg font-semibold text-gray-900">Preferencias</h2>
             <div className="space-y-3">
@@ -499,7 +574,7 @@ export function NutritionClientIntakePage() {
           </section>
         )}
 
-        {stepIndex === 4 && (
+        {stepIndex === 5 && (
           <section className="space-y-6">
             <h2 className="text-lg font-semibold text-gray-900">Medico y notas</h2>
             <div className="space-y-2">
@@ -656,6 +731,7 @@ export function NutritionClientIntakePage() {
           type="button"
           onClick={handlePrimaryAction}
           isLoading={submitClientIntake.isPending}
+          disabled={Boolean(stepValidationError) || submitClientIntake.isPending}
         >
           {isLastStep ? 'Guardar intake' : 'Siguiente'}
           {!isLastStep && <ChevronRight className="w-4 h-4" />}

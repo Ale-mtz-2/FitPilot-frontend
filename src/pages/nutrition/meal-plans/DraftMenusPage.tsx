@@ -104,10 +104,10 @@ export function DraftMenusPage() {
                     Tus menús no terminados se guardan automáticamente aquí para que puedas continuarlos después.
                 </p>
                 <button
-                    onClick={() => navigate('/nutrition/meal-plans/builder')}
+                    onClick={() => navigate('/nutrition/meal-plans/create-menu')}
                     className="px-6 py-2.5 bg-blue-600 text-white rounded-2xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95"
                 >
-                    Ir al Constructor
+                    Crear Menu
                 </button>
             </div>
         );

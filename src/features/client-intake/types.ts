@@ -23,6 +23,7 @@ export interface ClientIntakeInjuryForm {
 }
 
 export interface ClientIntakeFormState {
+  date_of_birth: string;
   goal_ids: number[];
   allergen_ids: number[];
   weight_kg: string;
@@ -63,6 +64,7 @@ export interface OnboardingInjuryPayload {
 
 export interface ClientOnboardingPayload {
   user_id: number;
+  date_of_birth: string;
   goals: OnboardingGoalPayload[];
   allergens: OnboardingAllergenPayload[];
   metrics?: OnboardingMetricsPayload;
@@ -82,6 +84,7 @@ export const createEmptyInjury = (): ClientIntakeInjuryForm => ({
 });
 
 export const createDefaultClientIntakeFormState = (): ClientIntakeFormState => ({
+  date_of_birth: '',
   goal_ids: [],
   allergen_ids: [],
   weight_kg: '',

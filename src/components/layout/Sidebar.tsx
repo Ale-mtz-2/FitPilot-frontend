@@ -40,7 +40,7 @@ const nutritionPrimaryItems: NavItem[] = [
 ];
 
 const nutritionConfig: NavItem[] = [
-  { nameKey: 'nutritionMealBuilder', href: '/nutrition/meal-plans', icon: ListBulletIcon },
+  { nameKey: 'nutritionMenus', href: '/nutrition/meal-plans', icon: ListBulletIcon },
 ];
 
 const settingsItem: NavItem = { nameKey: 'settings', href: '/profile', icon: Cog6ToothIcon };

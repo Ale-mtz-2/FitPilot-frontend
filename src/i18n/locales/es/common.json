@@ -14,15 +14,10 @@
     "nutrition": "Nutrición",
     "nutritionClients": "Clientes",
     "nutritionCreateDiet": "Crear nuevo plan",
-    "nutritionMealBuilder": "Constructor de Comidas",
+    "nutritionMenus": "Menus",
     "clientsMenus": "Menús Clientes",
     "clientPlans": "Planes Clientes",
     "agenda": "Agenda"
-  },
-  "mealPlans": {
-    "overview": "Resumen",
-    "builder": "Constructor",
-    "templates": "Plantillas"
   },
   "clientPlansPage": {
     "title": "Planes Clientes",

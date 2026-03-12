@@ -17,6 +17,7 @@ const buildHistoryFixture = (): IHistoryClient => ({
   deleted_at: null,
   username: 'laura.r',
   is_phone_verified: true,
+  date_of_birth: '1993-08-22T00:00:00.000Z',
   onboarding_status: 'pending',
   onboarding_completed_at: null,
   client_allergens: [
@@ -113,6 +114,7 @@ describe('client-intake mappers', () => {
 
     expect(formState.goal_ids).toEqual([3]);
     expect(formState.allergen_ids).toEqual([8]);
+    expect(formState.date_of_birth).toBe('1993-08-22');
     expect(formState.weight_kg).toBe('74.2');
     expect(formState.height_cm).toBe('165');
     expect(formState.likes).toEqual(['Avena', 'Yogurt griego']);
@@ -126,6 +128,7 @@ describe('client-intake mappers', () => {
     const formState = createDefaultClientIntakeFormState();
     formState.goal_ids = [1, 2, 2];
     formState.allergen_ids = [9];
+    formState.date_of_birth = '1991-11-03';
     formState.weight_kg = '80,5';
     formState.height_cm = '';
     formState.likes = ['  Frijoles  ', 'frijoles', 'Aguacate'];
@@ -154,6 +157,7 @@ describe('client-intake mappers', () => {
     const payload = mapFormToOnboardingPayload(44, formState);
 
     expect(payload.user_id).toBe(44);
+    expect(payload.date_of_birth).toBe('1991-11-03');
     expect(payload.goals).toEqual([{ id: 1 }, { id: 2 }]);
     expect(payload.allergens).toEqual([{ id: 9 }]);
     expect(payload.metrics).toEqual({ weight_kg: 80.5 });

@@ -3,7 +3,7 @@ import { IExchangeGroup } from '../exchange-groups/types';
 
 export interface IMenu {
     id: number;
-    meal_plan_id: number;
+    meal_plan_id?: number | null;
     client_id: number;
     start_date: string;
     end_date: string;
@@ -24,7 +24,7 @@ export interface IMenuMeal {
     id: number;
     menu_id: number;
     name: string;
-    source_meal_plan_meal_id: number;
+    source_meal_plan_meal_id?: number | null;
     // Mapping the complex key from the raw response
     menu_items_menu_items_menu_meal_idTomenu_meals: IMenuItem[];
 }
@@ -85,4 +85,23 @@ export interface GenerateAiMenuDto {
     language?: string;
     data_system?: string;
     model?: string;
+}
+
+export interface IMenuExchangeDraft {
+    id?: number;
+    exchange_group_id: number;
+    quantity: number;
+    meal_plan_meal_id?: number;
+    updated_at?: string;
+    deleted_at?: string | null;
+    exchange_group?: IExchangeGroup;
+}
+
+export interface IMenuMealDraft {
+    id?: number;
+    meal_name?: string;
+    sort_order?: number;
+    meal_plan_exchanges?: IMenuExchangeDraft[];
+    updated_at?: string;
+    deleted_at?: string | null;
 }

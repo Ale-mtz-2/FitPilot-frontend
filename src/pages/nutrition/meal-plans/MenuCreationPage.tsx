@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
-import { useGetMealPlanById } from '@/features/meal-plan/queries';
 import { useGetExchangeGroups } from '@/features/exchange-groups/queries';
 import { useProfessionalClients } from '@/features/professional-clients/queries';
 import { useProfessional } from '@/contexts/ProfessionalContext';
@@ -11,22 +10,11 @@ import { getFoodsByExchangeGroup } from '@/features/foods/api';
 import { useGetRecipes } from '@/features/recipe-foods/queries';
 import { RecipeFoodsService } from '@/features/recipe-foods/api';
 import { useGetMenuById, useCreateMenu, useGenerateMenuAI, useSaveMenuDraft, useUpdateMenuDraft } from '@/features/menus/queries';
-import { getDraftById } from '@/features/menus/api'; 
-// I need a way to get a single draft by ID. 
-// The user said: "get /v1/menus/draft" returns list. 
-// "despues se va actualizar con un patch, /v1/menus/draft/:id"
-// Usually there is a GET /v1/menus/draft/:id ? 
-// If not, I can filter from the list if the user didn't implement GET by ID.
-// The user request showed a GET for drafts (plural). 
-// Let's assume I need to fetch the list and find the draft or implement getDraftById. 
-// Users request image showed `getDrafts` taking params. It did not show `getDraftById`.
-// Safest bet: fetch all drafts for professional and find the one with the ID. 
-// OR simpler: The user said "el patch pide el id del draft, el id lo va a regresar el post".
-// I will implement a quick `useGetDraftById` that fetches all and filters, OR (better) ask the API if it supports it. 
-// Given the pattern, let's assume I can filter the list from `useGetDrafts`.
+import { getDraftById } from '@/features/menus/api';
 
 import { IFoodItem } from '@/features/foods/types';
-import { MacroSidebar, MacroStats, MicronutrientStats } from '@/features/meal-plan/components/MacroSidebar';
+import { MacroSidebar, MacroStats, MicronutrientStats } from '@/features/menus/components/MacroSidebar';
+import { IMenuExchangeDraft, IMenuMealDraft } from '@/features/menus/types';
 import { Menu } from '@headlessui/react';
 import { toast } from 'react-hot-toast';
 import { Modal } from '@/components/common/Modal';
@@ -53,7 +41,6 @@ import {
     Sparkles,
     Loader2
 } from 'lucide-react';
-import { IMealPlanMeal, IMealPlanExchange } from '@/features/meal-plan/types';
 import {
     DndContext,
     closestCenter,
@@ -93,20 +80,15 @@ export function MenuCreationPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const queryClient = useQueryClient();
-    const planId = Number(searchParams.get('planId'));
     const clientId = Number(searchParams.get('clientId'));
     const fromMenuId = Number(searchParams.get('fromMenuId'));
     const draftIdParam = searchParams.get('draftId');
 
     const { professional } = useProfessional();
-    const { data: plan, isLoading: planLoading } = useGetMealPlanById(planId);
     const { data: sourceMenu, isLoading: menuLoading } = useGetMenuById(fromMenuId);
     const { data: exchangeGroups } = useGetExchangeGroups();
     const { data: clients, isLoading: clientsLoading } = useProfessionalClients(professional?.sub || '');
 
-    // Fetch drafts to find the one we might be loading
-    // Optimization: In a real scenario, we'd want a specific getDraftById endpoint.
-    // For now, fetching list and filtering.
     const [isLoadingDraft, setIsLoadingDraft] = useState(false);
 
     useEffect(() => {
@@ -115,7 +97,7 @@ export function MenuCreationPage() {
                 // Reset state when no draft ID is present (New Menu Mode)
                 setDraftId(null);
                 setPeriod({ start: '', end: '' });
-                setLocalMeals([]); // Will trigger plan loading effect if applicable
+                setLocalMeals([]);
                 setSelectedFoods({});
                 setIsAiGeneratedDraft(false);
                 setLastSavedHash('');
@@ -192,7 +174,7 @@ export function MenuCreationPage() {
 
     const [loadingRecipeMealId, setLoadingRecipeMealId] = useState<number | null>(null);
 
-    const [localMeals, setLocalMeals] = useState<IMealPlanMeal[]>([]);
+    const [localMeals, setLocalMeals] = useState<IMenuMealDraft[]>([]);
     const [activeTabId, setActiveTabId] = useState<number | null>(null);
     const [editingTabId, setEditingTabId] = useState<number | null>(null);
     const [renameValue, setRenameValue] = useState('');
@@ -346,19 +328,10 @@ export function MenuCreationPage() {
     const [isReusableModalOpen, setIsReusableModalOpen] = useState(false);
     const [reusableForm, setReusableForm] = useState({ title: '', description: '' });
 
-    useEffect(() => {
-        if (plan?.meal_plan_meals && localMeals.length === 0 && !fromMenuId) {
-            setLocalMeals(plan.meal_plan_meals);
-            if (plan.meal_plan_meals.length > 0) {
-                setActiveTabId(plan.meal_plan_meals[0].id || null);
-            }
-        }
-    }, [plan, localMeals.length, fromMenuId]);
-
     // Effect to load data from reusable menu
     useEffect(() => {
         if (sourceMenu && localMeals.length === 0 && exchangeGroups) {
-            const transformedMeals: IMealPlanMeal[] = [];
+            const transformedMeals: IMenuMealDraft[] = [];
             const newSelectedFoods: Record<string, IFoodSelection[]> = {};
 
             sourceMenu.menu_meals.forEach((meal, mealIdx) => {
@@ -386,7 +359,7 @@ export function MenuCreationPage() {
 
                 // 3. Create Meal
                 const newMealId = -Math.floor(Math.random() * 1000000) - mealIdx;
-                const newMeal: IMealPlanMeal = {
+                const newMeal: IMenuMealDraft = {
                     id: newMealId,
                     meal_name: meal.name,
                     sort_order: mealIdx + 1,
@@ -610,16 +583,16 @@ export function MenuCreationPage() {
     );
 
     useEffect(() => {
-        if (!focusedMealId && plan?.meal_plan_meals?.[0]) {
-            setFocusedMealId(plan.meal_plan_meals[0].id || null);
+        if (!focusedMealId && localMeals[0]?.id) {
+            setFocusedMealId(localMeals[0].id || null);
         }
-    }, [plan, focusedMealId]);
+    }, [localMeals, focusedMealId]);
 
     // State moved up
 
 
     const handleAddTab = () => {
-        let newExchanges: IMealPlanExchange[] = [];
+        let newExchanges: IMenuExchangeDraft[] = [];
 
         if (localMeals.length > 0) {
             // Clone structure of the first meal (or currently active) to get exchange groups
@@ -639,7 +612,7 @@ export function MenuCreationPage() {
             }));
         }
 
-        const newMeal: IMealPlanMeal = {
+        const newMeal: IMenuMealDraft = {
             id: -Math.floor(Math.random() * 1000000), // temp ID
             meal_name: `Comida ${localMeals.length + 1}`,
             sort_order: localMeals.length + 1,
@@ -713,7 +686,6 @@ export function MenuCreationPage() {
 
         // Transform selectedFoods and localMeals for saving
         const menuData = {
-            meal_plan_id: planId || null,
             client_id: targetClientId,
             start_date: targetStartDate,
             end_date: targetEndDate,
@@ -725,7 +697,6 @@ export function MenuCreationPage() {
             alternate_menu_ids: alternateMenuIds,
             menu_meals: localMeals.map(meal => ({
                 name: meal.meal_name,
-                source_meal_plan_meal_id: meal.id && meal.id > 0 ? meal.id : null,
                 menu_items: (meal.meal_plan_exchanges || []).flatMap(ex => {
                     const key = `${meal.id}-${ex.id}`;
                     const selections = selectedFoods[key] || [];
@@ -751,7 +722,7 @@ export function MenuCreationPage() {
                     navigate('/nutrition/meal-plans/reusable-menus');
                 } else {
                     toast.success('Menú guardado con éxito');
-                    navigate('/nutrition/meal-plans/overview');
+                    navigate('/client-plans');
                 }
             }
         });
@@ -825,7 +796,7 @@ export function MenuCreationPage() {
             }));
 
             // 3. Process Meals
-            const transformedMeals: IMealPlanMeal[] = [];
+            const transformedMeals: IMenuMealDraft[] = [];
             const newSelectedFoods: Record<string, IFoodSelection[]> = {};
 
              aiData.menu_meals.forEach((meal: any, mealIdx: number) => {
@@ -848,7 +819,7 @@ export function MenuCreationPage() {
                 });
 
                 const newMealId = -Math.floor(Math.random() * 1000000) - mealIdx;
-                const newMeal: IMealPlanMeal = {
+                const newMeal: IMenuMealDraft = {
                     id: newMealId,
                     meal_name: meal.name,
                     sort_order: mealIdx + 1,
@@ -927,7 +898,7 @@ export function MenuCreationPage() {
 
 
     // Only wait for loading if we are actually fetching something
-    const isGlobalLoading = (!!planId && planLoading) || (!!fromMenuId && menuLoading) || clientsLoading || isProcessingAI || isLoadingDraft;
+    const isGlobalLoading = (!!fromMenuId && menuLoading) || clientsLoading || isProcessingAI || isLoadingDraft;
 
     // Remove early return, handle loading inside main layout
 
@@ -977,7 +948,7 @@ export function MenuCreationPage() {
                                     </div>
                                     <div className="flex items-center gap-2 text-gray-400">
                                         <ArrowRight className="w-4 h-4" />
-                                        <span className="text-xs font-bold uppercase tracking-tight">Basado en plantilla</span>
+                                        <span className="text-xs font-bold uppercase tracking-tight">Menu personalizado</span>
                                     </div>
                                 </div>
                                 <h1 className="text-4xl font-black text-gray-900 tracking-tight leading-none">
@@ -1010,7 +981,7 @@ export function MenuCreationPage() {
                                     <div className="p-1.5 bg-gray-50 rounded-lg border border-gray-100">
                                         <Utensils className="w-4 h-4 text-emerald-500" />
                                     </div>
-                                    <span className="text-sm font-bold">{plan?.name}</span>
+                                    <span className="text-sm font-bold">{sourceMenu?.title || 'Menu personalizado'}</span>
                                 </div>
                                 
                                 {/* Client Selector Trigger */}
@@ -1549,7 +1520,7 @@ onSelect={async (recipeId) => {
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center gap-2">
-                                                            {planId && !fromMenuId && ex.quantity > 0 ? (
+                                                            {ex.quantity > 0 ? (
                                                                 <>
                                                                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Objetivo:</span>
                                                                     <span className="px-3 py-1 bg-white rounded-full border border-gray-100 text-xs font-black text-emerald-600 shadow-sm">
@@ -2338,7 +2309,7 @@ function RecipeSelector({
 }
 
 interface SortableMealTabProps {
-    meal: IMealPlanMeal;
+    meal: IMenuMealDraft;
     activeTabId: number | null;
     setActiveTabId: (id: number | null) => void;
     editingTabId: number | null;

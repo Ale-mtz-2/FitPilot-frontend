@@ -14,6 +14,7 @@ export interface IHistoryClient {
     username: string;
     is_phone_verified: boolean;
     genre?: string;
+    date_of_birth?: string | null;
     onboarding_status?: string | null;
     onboarding_completed_at?: string | null;
     client_allergens: ClientAllergen[];
