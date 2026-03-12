@@ -14,7 +14,19 @@ import { getDraftById } from '@/features/menus/api';
 
 import { IFoodItem } from '@/features/foods/types';
 import { MacroSidebar, MacroStats, MicronutrientStats } from '@/features/menus/components/MacroSidebar';
-import { IMenuExchangeDraft, IMenuMealDraft } from '@/features/menus/types';
+import {
+    AiHydrationWarning,
+    GenerateAiMenuResponse,
+    IMenuExchangeDraft,
+    IMenuMealDraft,
+    MenuBuilderFoodSelection,
+} from '@/features/menus/types';
+import {
+    buildCompleteMealExchanges,
+    buildGroupQuantitiesFromItems,
+    buildSelectedFoodsFromItems,
+    normalizeMealDraftsWithAllGroups,
+} from '@/features/menus/draftHydration';
 import { Menu } from '@headlessui/react';
 import { toast } from 'react-hot-toast';
 import { Modal } from '@/components/common/Modal';
@@ -74,6 +86,8 @@ const AI_MODELS = [
     { value: 'gemini//gemini-2.5-flash', label: 'Gemini - 2.5 Flash' },
 ];
 
+type IFoodSelection = MenuBuilderFoodSelection;
+
 export function MenuCreationPage() {
     const [searchParams] = useSearchParams();
 
@@ -99,6 +113,7 @@ export function MenuCreationPage() {
                 setPeriod({ start: '', end: '' });
                 setLocalMeals([]);
                 setSelectedFoods({});
+                setAiHydrationWarnings([]);
                 setIsAiGeneratedDraft(false);
                 setLastSavedHash('');
                 // If we have query params like clientId, they stay in URL, so we don't need to clear them from state derived from URL
@@ -117,9 +132,16 @@ export function MenuCreationPage() {
                     
                     if (data.period) setPeriod(data.period);
                     if (data.localMeals) {
-                        setLocalMeals(data.localMeals);
-                        if (data.localMeals.length > 0) {
-                            setActiveTabId(data.localMeals[0].id || null);
+                        const incomingMeals = data.localMeals as IMenuMealDraft[];
+                        const normalizedMeals = exchangeGroups?.length
+                            ? normalizeMealDraftsWithAllGroups({
+                                meals: incomingMeals,
+                                canonicalGroups: exchangeGroups,
+                            })
+                            : incomingMeals;
+                        setLocalMeals(normalizedMeals);
+                        if (normalizedMeals.length > 0) {
+                            setActiveTabId(normalizedMeals[0].id || null);
                         }
                     }
                     if (data.selectedFoods) {
@@ -132,6 +154,7 @@ export function MenuCreationPage() {
                     }
                     
                     setDraftId(draftIdParam); // draftIdParam is now string
+                    setAiHydrationWarnings([]);
                     if (draft.is_ai_generated) setIsAiGeneratedDraft(true);
                     
                     // If client is associated, maybe set it?
@@ -167,6 +190,7 @@ export function MenuCreationPage() {
 
     const [period, setPeriod] = useState({ start: '', end: '' });
     const [selectedFoods, setSelectedFoods] = useState<Record<string, IFoodSelection[]>>({}); // mealExchangeKey -> IFoodSelection[]
+    const [aiHydrationWarnings, setAiHydrationWarnings] = useState<AiHydrationWarning[]>([]);
     const [focusedMealId, setFocusedMealId] = useState<number | null>(null);
 
     // Template State
@@ -335,113 +359,84 @@ export function MenuCreationPage() {
             const newSelectedFoods: Record<string, IFoodSelection[]> = {};
 
             sourceMenu.menu_meals.forEach((meal, mealIdx) => {
-                // 1. Group items by exchange group
-                const exchangeGroupsInMeal: Record<number, number> = {}; // groupId -> sum(quantity)
-                
-                // Get the items array from the nested structure
                 const items = meal.menu_items_menu_items_menu_meal_idTomenu_meals || [];
-                
-                items.forEach(item => {
-                    if (item.exchange_group_id) {
-                        exchangeGroupsInMeal[item.exchange_group_id] = (exchangeGroupsInMeal[item.exchange_group_id] || 0) + (item.quantity || 0);
-                    }
+                const quantitiesByGroupId = buildGroupQuantitiesFromItems(items);
+                const exchanges = buildCompleteMealExchanges({
+                    canonicalGroups: exchangeGroups,
+                    quantitiesByGroupId,
+                    mealSeed: mealIdx + 1,
                 });
 
-                // 2. Create exchanges
-                const exchanges = Object.entries(exchangeGroupsInMeal).map(([groupIdStr, quantity]) => {
-                    return {
-                        id: -Math.floor(Math.random() * 1000000) - Number(groupIdStr), // Temp ID
-                        exchange_group_id: Number(groupIdStr),
-                        quantity: quantity, // Use the summed quantity (exchanges)
-                        meal_plan_meal_id: 0
-                    };
-                });
-
-                // 3. Create Meal
                 const newMealId = -Math.floor(Math.random() * 1000000) - mealIdx;
                 const newMeal: IMenuMealDraft = {
                     id: newMealId,
                     meal_name: meal.name,
                     sort_order: mealIdx + 1,
-                    meal_plan_exchanges: exchanges
+                    meal_plan_exchanges: exchanges,
                 };
                 transformedMeals.push(newMeal);
 
-                // 4. Populate selectedFoods for each exchange
-                exchanges.forEach(ex => {
-                    const key = `${newMealId}-${ex.id}`;
-                    const groupItems = items.filter(i => i.exchange_group_id === ex.exchange_group_id);
-                    const selections: IFoodSelection[] = [];
-
-                    groupItems.forEach(item => {
-                        if (item.food_id && item.foods) {
-                            const food = item.foods;
-                            // Calculate grams based on 'quantity' in menu_items. 
-                            // In menu_items, quantity is typically the number of equivalents (exchanges).
-                            // We need to calculate the GRAMS based on this equivalent count.
-                            
-                            const nutritionValue = food.food_nutrition_values?.[0]; // Should be included now
-                            const baseSize = parseFloat(String(nutritionValue?.base_serving_size)) || 100;
-
-                            // Assume item.quantity is EQUIVALENTS
-                            let calculatedExchanges = item.quantity || 0;
-                            let grams = 0;
-
-                            if (nutritionValue && baseSize > 0) {
-                                // Formula: Grams = Exchanges * BaseSize
-                                grams = calculatedExchanges * baseSize;
-                            } else {
-                                // Fallback if no nutrition info (shouldn't happen often)
-                                grams = calculatedExchanges * 100;
-                            }
-                           
-                            selections.push({
-                                foodId: food.id,
-                                grams: Number(grams.toFixed(1)),
-                                calculatedExchanges: calculatedExchanges,
-                                nutritionValueId: nutritionValue?.id,
-                                _foodRef: food,
-                                isFromRecipe: !!item.recipe_id
-                            });
-                        }
-                    });
-
-                    // Pad with empty selections if total selections < exchange quantity? 
-                    // Usually we don't enforce this strictly here, but good to have at least one or match count.
-                    // If no foods selected but exchange exists, add empty placeholders
-                    if (selections.length === 0) {
-                         const numSelectors = Math.ceil(ex.quantity);
-                         for(let i=0; i<numSelectors; i++) {
-                             selections.push({ grams: 0, calculatedExchanges: 0 });
-                         }
-                    }
-
-                    newSelectedFoods[key] = selections;
+                const { selectionsByKey } = buildSelectedFoodsFromItems({
+                    mealId: newMealId,
+                    mealName: meal.name || `Comida ${mealIdx + 1}`,
+                    exchanges,
+                    items,
                 });
+                Object.assign(newSelectedFoods, selectionsByKey);
             });
 
             setLocalMeals(transformedMeals);
             setSelectedFoods(newSelectedFoods);
+            setAiHydrationWarnings([]);
             if (transformedMeals.length > 0) {
                 setActiveTabId(transformedMeals[0].id || null);
             }
         }
     }, [sourceMenu, localMeals.length, exchangeGroups]);
 
+    useEffect(() => {
+        if (!exchangeGroups?.length) {
+            return;
+        }
+
+        setLocalMeals((prevMeals) => {
+            if (!prevMeals.length) {
+                return prevMeals;
+            }
+
+            const normalizedMeals = normalizeMealDraftsWithAllGroups({
+                meals: prevMeals,
+                canonicalGroups: exchangeGroups,
+            });
+
+            const hasChanged = prevMeals.some((meal, mealIndex) => {
+                const previousExchanges = meal.meal_plan_exchanges ?? [];
+                const normalizedExchanges = normalizedMeals[mealIndex]?.meal_plan_exchanges ?? [];
+                if (previousExchanges.length !== normalizedExchanges.length) {
+                    return true;
+                }
+
+                return previousExchanges.some((previousExchange, exchangeIndex) => {
+                    const normalizedExchange = normalizedExchanges[exchangeIndex];
+                    if (!normalizedExchange) {
+                        return true;
+                    }
+                    return (
+                        previousExchange.id !== normalizedExchange.id
+                        || previousExchange.exchange_group_id !== normalizedExchange.exchange_group_id
+                        || Number(previousExchange.quantity ?? 0) !== Number(normalizedExchange.quantity ?? 0)
+                    );
+                });
+            });
+
+            return hasChanged ? normalizedMeals : prevMeals;
+        });
+    }, [exchangeGroups, localMeals]);
+
     // Keep focusedMealId for compatibility with existing sidebar logic, sync with activeTabId
     useEffect(() => {
         setFocusedMealId(activeTabId);
     }, [activeTabId]);
-
-    interface IFoodSelection {
-        foodId?: number;
-        grams: number;
-        calculatedExchanges: number;
-        nutritionValueId?: number;
-        _foodRef?: IFoodItem; // Temporary ref for calculations
-        isFromRecipe?: boolean;
-        shouldAutoOpen?: boolean;
-    }
 
     const client = useMemo(() => clients?.find(c => c.id === clientId), [clients, clientId]);
     const isClientIntakeCompleted =
@@ -755,11 +750,16 @@ export function MenuCreationPage() {
 
     const handleConfirmGenerateAI = async () => {
         if (!client) return;
+        if (!exchangeGroups?.length) {
+            toast.error('No se pudieron cargar los grupos de alimentos.');
+            return;
+        }
         setIsAiOptionsModalOpen(false);
         setIsProcessingAI(true);
+        setAiHydrationWarnings([]);
         
         try {
-            const aiData = await generateAIAsync({
+            const aiData: GenerateAiMenuResponse = await generateAIAsync({
                 client_id: client.id,
                 extra_notes: aiNotes || undefined,
                 language: 'ES', // Default
@@ -777,9 +777,12 @@ export function MenuCreationPage() {
 
             // 2. Fetch required foods
             const groupIds = new Set<number>();
-            aiData.menu_meals.forEach((meal: any) => {
-                meal.menu_items.forEach((item: any) => {
-                    if (item.exchange_group_id) groupIds.add(item.exchange_group_id);
+            aiData.menu_meals.forEach((meal) => {
+                meal.menu_items.forEach((item) => {
+                    const groupId = Number(item.exchange_group_id);
+                    if (Number.isInteger(groupId) && groupId > 0) {
+                        groupIds.add(groupId);
+                    }
                 });
             });
 
@@ -798,88 +801,39 @@ export function MenuCreationPage() {
             // 3. Process Meals
             const transformedMeals: IMenuMealDraft[] = [];
             const newSelectedFoods: Record<string, IFoodSelection[]> = {};
+            const warnings: AiHydrationWarning[] = [];
 
-             aiData.menu_meals.forEach((meal: any, mealIdx: number) => {
-                const exchangeGroupsInMeal: Record<number, number> = {}; 
+            aiData.menu_meals.forEach((meal, mealIdx) => {
                 const items = meal.menu_items || [];
-
-                items.forEach((item: any) => {
-                    if (item.exchange_group_id) {
-                        exchangeGroupsInMeal[item.exchange_group_id] = (exchangeGroupsInMeal[item.exchange_group_id] || 0) + (item.equivalent_quantity || 0);
-                    }
-                });
-
-                 const exchanges = Object.entries(exchangeGroupsInMeal).map(([groupIdStr, quantity]) => {
-                    return {
-                        id: -Math.floor(Math.random() * 1000000) - Number(groupIdStr) - mealIdx * 1000, 
-                        exchange_group_id: Number(groupIdStr),
-                        quantity: quantity, 
-                        meal_plan_meal_id: 0
-                    };
+                const quantitiesByGroupId = buildGroupQuantitiesFromItems(items);
+                const exchanges = buildCompleteMealExchanges({
+                    canonicalGroups: exchangeGroups ?? [],
+                    quantitiesByGroupId,
+                    mealSeed: mealIdx + 1,
                 });
 
                 const newMealId = -Math.floor(Math.random() * 1000000) - mealIdx;
-                const newMeal: IMenuMealDraft = {
+                transformedMeals.push({
                     id: newMealId,
                     meal_name: meal.name,
                     sort_order: mealIdx + 1,
-                    meal_plan_exchanges: exchanges
-                };
-                transformedMeals.push(newMeal);
-
-                exchanges.forEach(ex => {
-                    const key = `${newMealId}-${ex.id}`;
-                    const groupItems = items.filter((i: any) => i.exchange_group_id === ex.exchange_group_id);
-                    const selections: IFoodSelection[] = [];
-
-                    groupItems.forEach((item: any) => {
-                        const food = foodsMap[item.food_id];
-                        if (food) {
-                            const nutritionValue = food.food_nutrition_values?.[0];
-                            
-                            // Calculate grams from equivalents (item.quantity is grams? No, wait. item in AI response has equivalent_quantity)
-                            // In AI response: item.quantity (might be grams or count) and item.equivalent_quantity (exchanges).
-                            // The user said "grams coming back wrong". Trust equivalent_quantity.
-                            
-                            let calculatedExchanges = item.equivalent_quantity || 0;
-                            let grams = item.quantity || 0; 
-
-                            // Recalculate grams to be safe
-                            if (nutritionValue && calculatedExchanges > 0) {
-                                // We need avgCal for the group. 
-                                // groupsMap might not be fully available here as we are in async function?
-                                // We can try to find it from the fetched foods or pass it.
-                                // But simpler: The food usually knows its exchange group.
-                                // Fetching foods also returns exchange group data usually? 
-                                // Actually getFoodsByExchangeGroup returns IFoodItem which has exchange_groups nested?
-                                // Let's check IFoodItem interface. It has exchange_groups: IExchangeGroup.
-                                
-                                // group is not needed for new calculation
-                                const baseSize = parseFloat(String(nutritionValue.base_serving_size)) || 1;
-
-                                if (baseSize > 0) {
-                                    grams = calculatedExchanges * baseSize;
-                                }
-                            }
-
-                             selections.push({
-                                foodId: food.id,
-                                grams: Number(grams.toFixed(1)),
-                                calculatedExchanges: calculatedExchanges,
-                                nutritionValueId: nutritionValue?.id,
-                                _foodRef: food,
-                                isFromRecipe: false
-                            });
-                        }
-                    });
-                    
-                    newSelectedFoods[key] = selections;
+                    meal_plan_exchanges: exchanges,
                 });
 
-             });
+                const { selectionsByKey, warnings: hydrationWarnings } = buildSelectedFoodsFromItems({
+                    mealId: newMealId,
+                    mealName: meal.name || `Comida ${mealIdx + 1}`,
+                    exchanges,
+                    items,
+                    foodsById: foodsMap,
+                });
+                Object.assign(newSelectedFoods, selectionsByKey);
+                warnings.push(...hydrationWarnings);
+            });
 
              setLocalMeals(transformedMeals);
              setSelectedFoods(newSelectedFoods);
+             setAiHydrationWarnings(warnings);
              if (transformedMeals.length > 0) {
                  setActiveTabId(transformedMeals[0].id || null);
              }
@@ -1210,6 +1164,32 @@ export function MenuCreationPage() {
                                 </div>
                             )}
 
+
+                    {aiHydrationWarnings.length > 0 && (
+                        <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4">
+                            <p className="text-sm font-semibold text-amber-900">
+                                La IA generó el menú, pero algunos alimentos no se pudieron hidratar.
+                            </p>
+                            <p className="text-xs text-amber-800 mt-1">
+                                Se registraron {aiHydrationWarnings.length} incidencias. Revisa y ajusta manualmente los grupos afectados.
+                            </p>
+                            <div className="mt-3 space-y-1">
+                                {aiHydrationWarnings.slice(0, 5).map((warning, index) => (
+                                    <p
+                                        key={`${warning.reason}-${warning.meal_name}-${warning.exchange_group_id ?? 'na'}-${warning.food_id ?? 'na'}-${index}`}
+                                        className="text-xs text-amber-900"
+                                    >
+                                        {warning.meal_name}: {warning.message}
+                                    </p>
+                                ))}
+                                {aiHydrationWarnings.length > 5 && (
+                                    <p className="text-xs text-amber-700">
+                                        +{aiHydrationWarnings.length - 5} incidencias adicionales.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
 
                     {/* Main Content Area */}

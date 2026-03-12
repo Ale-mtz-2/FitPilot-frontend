@@ -1,5 +1,5 @@
 import { nutritionApi } from "@/api/clients/nutrition.client";
-import { IMenu, IMenuDraft } from './types';
+import { GenerateAiMenuDto, GenerateAiMenuResponse, IMenu, IMenuDraft } from './types';
 import { assertNutritionSubscriptionAccess } from '@/features/subscriptions/nutritionAccess';
 
 export const getMenus = async (professionalId?: number): Promise<IMenu[]> => {
@@ -94,11 +94,9 @@ export const getMenuPoolCalendar = async (professionalId: number, clientId?: num
     return data;
 };
 
-import { GenerateAiMenuDto } from './types';
-
-export const generateMenuAI = async (data: GenerateAiMenuDto): Promise<any> => {
+export const generateMenuAI = async (data: GenerateAiMenuDto): Promise<GenerateAiMenuResponse> => {
     assertNutritionSubscriptionAccess();
     // Increase timeout to 120 seconds (2 minutes) for AI generation
-    const { data: response } = await nutritionApi.post('/v1/menus/ai-generate', data, { timeout: 120000 });
+    const { data: response } = await nutritionApi.post<GenerateAiMenuResponse>('/v1/menus/ai-generate', data, { timeout: 120000 });
     return response;
 };

@@ -87,6 +87,44 @@ export interface GenerateAiMenuDto {
     model?: string;
 }
 
+export interface GenerateAiMenuItem {
+    exchange_group_id: number | null;
+    food_id: number | null;
+    quantity: number;
+    equivalent_quantity: number;
+    food_name?: string;
+}
+
+export interface GenerateAiMenuMeal {
+    name: string;
+    menu_items: GenerateAiMenuItem[];
+}
+
+export interface GenerateAiMenuResponse {
+    client_id: number;
+    start_date: string;
+    end_date: string;
+    menu_meals: GenerateAiMenuMeal[];
+}
+
+export interface AiHydrationWarning {
+    meal_name: string;
+    exchange_group_id?: number;
+    food_id?: number;
+    reason: 'missing_food' | 'missing_exchange_group';
+    message: string;
+}
+
+export interface MenuBuilderFoodSelection {
+    foodId?: number;
+    grams: number;
+    calculatedExchanges: number;
+    nutritionValueId?: number;
+    _foodRef?: IFoodItem;
+    isFromRecipe?: boolean;
+    shouldAutoOpen?: boolean;
+}
+
 export interface IMenuExchangeDraft {
     id?: number;
     exchange_group_id: number;
