@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Copy, Plus, Save, Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { MacroSummaryCard, type MacroStats } from '@/components/nutrition/MacroSummaryCard';
 import { RecipeImageUploader } from '@/components/recipes/RecipeImageUploader';
 import { RecipeIngredientPickerModal } from '@/components/recipes/RecipeIngredientPickerModal';
 import { useProfessional } from '@/contexts/ProfessionalContext';
@@ -14,7 +15,11 @@ import {
     useUpdateRecipe,
     useUploadRecipeImage,
 } from '@/features/recipes/queries';
-import type { RecipeIngredient, RecipeUpsertInput } from '@/features/recipes/types';
+import type {
+    RecipeIngredient,
+    RecipeNutritionSummary,
+    RecipeUpsertInput,
+} from '@/features/recipes/types';
 
 type DraftIngredient = {
     clientId: string;
@@ -93,6 +98,14 @@ const buildClientIngredientId = (foodId: number) => {
 
     return `${foodId}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
+
+const toMacroStats = (summary: RecipeNutritionSummary): MacroStats => ({
+    calories: summary.calories_kcal,
+    protein: summary.protein_g,
+    carbs: summary.carbs_g,
+    fat: summary.fat_g,
+    fiber: summary.fiber_g,
+});
 
 export function NutritionRecipeEditorPage() {
     const navigate = useNavigate();
@@ -293,7 +306,7 @@ export function NutritionRecipeEditorPage() {
                         {isEditing ? 'Editar receta' : 'Nueva receta'}
                     </h1>
                     <p className="mt-2 text-gray-500">
-                        Define ingredientes, portada y resumen nutricional de la receta.
+                        Define ingredientes, portada y macros estimados de la receta.
                     </p>
                 </div>
 
@@ -507,30 +520,30 @@ export function NutritionRecipeEditorPage() {
                                 disabled={isTemplateReadonly || isSaving}
                             />
 
-                            <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm">
-                                <h2 className="text-xl font-bold text-gray-900">Resumen nutricional</h2>
-                                <p className="mt-1 text-sm text-gray-500">
-                                    Estimado automaticamente a partir de los ingredientes cargados.
-                                </p>
+                            <section className="rounded-[2.5rem] border border-gray-100 bg-white p-6 shadow-xl shadow-gray-200/40">
+                                <MacroSummaryCard
+                                    stats={toMacroStats(nutritionSummary)}
+                                    title="Macros estimados calculados desde ingredientes"
+                                    subtitle="Receta actual"
+                                />
 
                                 <div className="mt-5 grid grid-cols-2 gap-3">
-                                    {[
-                                        ['Kcal', nutritionSummary.calories_kcal],
-                                        ['Proteina', nutritionSummary.protein_g],
-                                        ['Carbohidratos', nutritionSummary.carbs_g],
-                                        ['Grasa', nutritionSummary.fat_g],
-                                        ['Fibra', nutritionSummary.fiber_g],
-                                        ['Ingredientes', ingredients.length],
-                                    ].map(([label, value]) => (
-                                        <div key={label} className="rounded-2xl bg-gray-50 px-4 py-3">
-                                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                                {label}
-                                            </div>
-                                            <div className="mt-1 text-lg font-bold text-gray-900">
-                                                {typeof value === 'number' ? value.toFixed(1) : value}
-                                            </div>
+                                    <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                            Ingredientes
                                         </div>
-                                    ))}
+                                        <div className="mt-1 text-lg font-bold text-gray-900">
+                                            {ingredients.length}
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                            Estado
+                                        </div>
+                                        <div className="mt-1 text-sm font-semibold text-gray-900">
+                                            {ingredients.length > 0 ? 'Actualizado en vivo' : 'Sin ingredientes'}
+                                        </div>
+                                    </div>
                                 </div>
                             </section>
                         </div>

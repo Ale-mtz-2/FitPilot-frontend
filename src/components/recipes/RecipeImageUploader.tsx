@@ -251,7 +251,7 @@ export function RecipeImageUploader({
 
                 <div className="flex flex-col items-center gap-4">
                     <div className="relative">
-                        <div className="relative h-44 w-44 overflow-hidden rounded-[1.75rem] border border-gray-200 bg-gradient-to-br from-nutrition-50 via-white to-orange-50 shadow-sm">
+                        <div className="relative h-44 w-44 overflow-hidden rounded-[1.75rem] border border-gray-200 bg-white shadow-sm">
                             {displayImage ? (
                                 <img
                                     src={displayImage}
@@ -320,7 +320,7 @@ export function RecipeImageUploader({
                         <div className="flex flex-col gap-5 lg:flex-row">
                             <div className="mx-auto lg:mx-0">
                                 <div
-                                    className={`relative h-72 w-72 touch-none select-none overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 ${
+                                    className={`relative h-72 w-72 touch-none select-none overflow-hidden rounded-2xl border border-gray-200 bg-white ${
                                         isDragging ? 'cursor-grabbing' : 'cursor-grab'
                                     }`}
                                     onPointerDown={handlePointerDown}

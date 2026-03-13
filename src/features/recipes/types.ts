@@ -35,11 +35,11 @@ export interface RecipeListItem {
     created_at: string;
     updated_at: string;
     ingredient_count: number;
+    nutrition_summary: RecipeNutritionSummary;
 }
 
 export interface RecipeDetail extends RecipeListItem {
     ingredients: RecipeIngredient[];
-    nutrition_summary: RecipeNutritionSummary;
 }
 
 export interface RecipeUpsertInput {

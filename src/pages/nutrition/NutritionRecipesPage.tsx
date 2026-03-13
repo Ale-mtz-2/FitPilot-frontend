@@ -37,6 +37,8 @@ const formatDate = (value: string) => {
     });
 };
 
+const formatMacroValue = (value: number, suffix: string) => `${value.toFixed(1)}${suffix}`;
+
 function RecipeCard({
     recipe,
     onEdit,
@@ -61,7 +63,7 @@ function RecipeCard({
             whileHover={{ y: -4 }}
             className="overflow-hidden rounded-[2rem] border border-gray-100 bg-white shadow-sm transition hover:shadow-xl hover:shadow-nutrition-500/10"
         >
-            <div className="relative h-48 overflow-hidden bg-gradient-to-br from-nutrition-50 via-white to-orange-50">
+            <div className="relative h-48 overflow-hidden bg-white">
                 {recipe.image_url ? (
                     <img src={recipe.image_url} alt={recipe.name} className="h-full w-full object-cover" />
                 ) : (
@@ -80,19 +82,43 @@ function RecipeCard({
             <div className="space-y-5 p-6">
                 <div>
                     <h3 className="line-clamp-2 text-xl font-black text-gray-900">{recipe.name}</h3>
-                    <p className="mt-2 min-h-[40px] text-sm leading-6 text-gray-500">
-                        {recipe.description || 'Sin descripcion.'}
+                    <p className="mt-2 text-sm font-medium text-gray-500">
+                        {recipe.ingredient_count} ingrediente{recipe.ingredient_count === 1 ? '' : 's'} cargado
+                        {recipe.ingredient_count === 1 ? '' : 's'}
                     </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-2xl bg-gray-50 px-4 py-3">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Ingredientes</div>
-                        <div className="mt-1 text-lg font-bold text-gray-900">{recipe.ingredient_count}</div>
+                    <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Kcal</div>
+                        <div className="mt-1 text-lg font-bold text-gray-900">
+                            {recipe.nutrition_summary.calories_kcal.toFixed(0)}
+                        </div>
                     </div>
-                    <div className="rounded-2xl bg-gray-50 px-4 py-3">
+                    <div className="rounded-2xl border border-red-100 bg-red-50/70 px-4 py-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-red-400">Proteina</div>
+                        <div className="mt-1 text-lg font-bold text-gray-900">
+                            {formatMacroValue(recipe.nutrition_summary.protein_g, 'g')}
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-blue-400">Carbs</div>
+                        <div className="mt-1 text-lg font-bold text-gray-900">
+                            {formatMacroValue(recipe.nutrition_summary.carbs_g, 'g')}
+                        </div>
+                    </div>
+                    <div className="rounded-2xl border border-orange-100 bg-orange-50/70 px-4 py-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-orange-400">Grasas</div>
+                        <div className="mt-1 text-lg font-bold text-gray-900">
+                            {formatMacroValue(recipe.nutrition_summary.fat_g, 'g')}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-100 bg-gray-50/70 px-4 py-3 text-sm">
+                    <div>
                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Actualizada</div>
-                        <div className="mt-1 text-sm font-semibold text-gray-900">{formatDate(recipe.updated_at)}</div>
+                        <div className="mt-1 font-semibold text-gray-900">{formatDate(recipe.updated_at)}</div>
                     </div>
                 </div>
 
@@ -204,7 +230,7 @@ export function NutritionRecipesPage() {
                     </div>
                     <h1 className="mt-4 text-3xl font-black tracking-tight text-gray-900">Recetas de alimentos</h1>
                     <p className="mt-2 max-w-2xl text-gray-500">
-                        Administra tus recetas y plantillas reutilizables con imagen, ingredientes y resumen nutricional.
+                        Administra tus recetas y plantillas reutilizables con imagen, ingredientes y macros estimados.
                     </p>
                 </div>
 

@@ -169,8 +169,15 @@ export async function renderSquareCropToBlob(params: {
     cropRect: CropRect;
     outputSize?: number;
     maxBytes?: number;
+    backgroundColor?: string;
 }): Promise<Blob> {
-    const { draft, cropRect, outputSize = 512, maxBytes = DEFAULT_MAX_OUTPUT_BYTES } = params;
+    const {
+        draft,
+        cropRect,
+        outputSize = 512,
+        maxBytes = DEFAULT_MAX_OUTPUT_BYTES,
+        backgroundColor = '#ffffff',
+    } = params;
     const image = await loadImage(draft.src);
     const canvas = document.createElement('canvas');
     canvas.width = outputSize;
@@ -183,6 +190,8 @@ export async function renderSquareCropToBlob(params: {
 
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, outputSize, outputSize);
     ctx.drawImage(
         image,
         cropRect.sx,
