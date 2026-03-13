@@ -15,6 +15,10 @@ export default defineConfig(({ mode }) => {
       svgr(),
       tailwindcss(),
     ],
+    build: {
+      outDir: "dist",
+      emptyOutDir: true,
+    },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
