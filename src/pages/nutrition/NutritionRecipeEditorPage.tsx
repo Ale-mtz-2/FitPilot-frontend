@@ -108,6 +108,8 @@ const toMacroStats = (summary: RecipeNutritionSummary): MacroStats => ({
     fiber: summary.fiber_g,
 });
 
+const XL_MEDIA_QUERY = '(min-width: 1280px)';
+
 export function NutritionRecipeEditorPage() {
     const navigate = useNavigate();
     const { recipeId } = useParams<{ recipeId: string }>();
@@ -137,6 +139,34 @@ export function NutritionRecipeEditorPage() {
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const [hydratedRecipeId, setHydratedRecipeId] = useState<number | null>(null);
+    const [isXlViewport, setIsXlViewport] = useState(() => {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+            return true;
+        }
+
+        return window.matchMedia(XL_MEDIA_QUERY).matches;
+    });
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+            return undefined;
+        }
+
+        const mediaQuery = window.matchMedia(XL_MEDIA_QUERY);
+        const handleChange = (event: MediaQueryListEvent) => {
+            setIsXlViewport(event.matches);
+        };
+
+        setIsXlViewport(mediaQuery.matches);
+
+        if (typeof mediaQuery.addEventListener === 'function') {
+            mediaQuery.addEventListener('change', handleChange);
+            return () => mediaQuery.removeEventListener('change', handleChange);
+        }
+
+        mediaQuery.addListener(handleChange);
+        return () => mediaQuery.removeListener(handleChange);
+    }, []);
 
     useEffect(() => {
         if (!recipe || recipe.id === hydratedRecipeId) {
@@ -281,12 +311,56 @@ export function NutritionRecipeEditorPage() {
         }
     };
 
+    const sidebarContent = (
+        <div className="space-y-6">
+            <RecipeImageUploader
+                imageUrl={imagePreviewUrl}
+                onChange={(blob, previewUrl) => {
+                    setImagePreviewUrl(previewUrl);
+                    setPendingImageBlob(blob);
+                    setRemoveImageRequested(false);
+                }}
+                onRemove={() => {
+                    setImagePreviewUrl(null);
+                    setPendingImageBlob(null);
+                    setRemoveImageRequested(Boolean(recipe?.image_url));
+                }}
+                disabled={isTemplateReadonly || isSaving}
+            />
+
+            <section className="rounded-[2.5rem] border border-gray-100 bg-white p-6 shadow-xl shadow-gray-200/40">
+                <MacroSummaryCard
+                    stats={toMacroStats(nutritionSummary)}
+                    title="Macros estimados calculados desde ingredientes"
+                    subtitle="Receta actual"
+                />
+
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                            Ingredientes
+                        </div>
+                        <div className="mt-1 text-lg font-bold text-gray-900">{ingredients.length}</div>
+                    </div>
+                    <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                            Estado
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-gray-900">
+                            {ingredients.length > 0 ? 'Actualizado en vivo' : 'Sin ingredientes'}
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    );
+
     if (isEditing && isLoading) {
         return (
             <div className="mx-auto max-w-7xl p-6">
                 <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-                    <div className="order-2 h-[620px] animate-pulse rounded-[2rem] border border-gray-100 bg-gray-50 xl:order-1" />
-                    <div className="order-1 h-[420px] animate-pulse rounded-[2rem] border border-gray-100 bg-gray-50 xl:order-2 xl:h-[620px]" />
+                    <div className="h-[420px] animate-pulse rounded-[2rem] border border-gray-100 bg-gray-50 xl:col-start-2 xl:row-start-1 xl:h-[620px]" />
+                    <div className="h-[620px] animate-pulse rounded-[2rem] border border-gray-100 bg-gray-50 xl:col-start-1 xl:row-start-1" />
                 </div>
             </div>
         );
@@ -344,8 +418,10 @@ export function NutritionRecipeEditorPage() {
                 </div>
             ) : null}
 
+            {!isXlViewport ? sidebarContent : null}
+
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-                <div className="order-2 space-y-6 xl:order-1">
+                <div className="space-y-6">
                     <section className="rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm">
                         <h2 className="text-xl font-bold text-gray-900">Datos generales</h2>
                         <div className="mt-5 grid gap-5">
@@ -505,53 +581,11 @@ export function NutritionRecipeEditorPage() {
                     </section>
                 </div>
 
-                <div className="order-1 space-y-6 xl:order-2">
-                    <div className="xl:sticky xl:top-6 xl:self-start">
-                        <div className="space-y-6">
-                            <RecipeImageUploader
-                                imageUrl={imagePreviewUrl}
-                                onChange={(blob, previewUrl) => {
-                                    setImagePreviewUrl(previewUrl);
-                                    setPendingImageBlob(blob);
-                                    setRemoveImageRequested(false);
-                                }}
-                                onRemove={() => {
-                                    setImagePreviewUrl(null);
-                                    setPendingImageBlob(null);
-                                    setRemoveImageRequested(Boolean(recipe?.image_url));
-                                }}
-                                disabled={isTemplateReadonly || isSaving}
-                            />
-
-                            <section className="rounded-[2.5rem] border border-gray-100 bg-white p-6 shadow-xl shadow-gray-200/40">
-                                <MacroSummaryCard
-                                    stats={toMacroStats(nutritionSummary)}
-                                    title="Macros estimados calculados desde ingredientes"
-                                    subtitle="Receta actual"
-                                />
-
-                                <div className="mt-5 grid grid-cols-2 gap-3">
-                                    <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
-                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                            Ingredientes
-                                        </div>
-                                        <div className="mt-1 text-lg font-bold text-gray-900">
-                                            {ingredients.length}
-                                        </div>
-                                    </div>
-                                    <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
-                                        <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                            Estado
-                                        </div>
-                                        <div className="mt-1 text-sm font-semibold text-gray-900">
-                                            {ingredients.length > 0 ? 'Actualizado en vivo' : 'Sin ingredientes'}
-                                        </div>
-                                    </div>
-                                </div>
-                            </section>
-                        </div>
+                {isXlViewport ? (
+                    <div className="space-y-6 xl:col-start-2 xl:row-start-1">
+                        <div className="xl:sticky xl:top-6 xl:self-start">{sidebarContent}</div>
                     </div>
-                </div>
+                ) : null}
             </div>
 
             <RecipeIngredientPickerModal
