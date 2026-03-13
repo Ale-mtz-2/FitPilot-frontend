@@ -13,6 +13,11 @@ type MenuItemHydrationInput = {
   quantity?: number | null;
   equivalent_quantity?: number | null;
   recipe_id?: number | null;
+  recipe_summary?: {
+    id: number;
+    title: string;
+    image_url: string | null;
+  } | null;
   foods?: IFoodItem | null;
   food_name?: string | null;
 };
@@ -241,6 +246,9 @@ export const buildSelectedFoodsFromItems = ({
         calculatedExchanges,
         nutritionValueId: nutritionValue?.id,
         _foodRef: hydratedFood,
+        recipeId: item.recipe_id ?? undefined,
+        recipeName: item.recipe_summary?.title ?? undefined,
+        recipeImageUrl: item.recipe_summary?.image_url ?? undefined,
         isFromRecipe: Boolean(item.recipe_id),
       });
     }

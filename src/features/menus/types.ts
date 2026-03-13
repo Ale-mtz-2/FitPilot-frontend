@@ -37,6 +37,11 @@ export interface IMenuItem {
     serving_unit_id: number | null;
     quantity: number;
     recipe_id: number | null;
+    recipe_summary?: {
+        id: number;
+        title: string;
+        image_url: string | null;
+    } | null;
     foods: IFoodItem;
     exchange_groups: IExchangeGroup;
     equivalent_quantity: number;
@@ -121,6 +126,9 @@ export interface MenuBuilderFoodSelection {
     calculatedExchanges: number;
     nutritionValueId?: number;
     _foodRef?: IFoodItem;
+    recipeId?: number;
+    recipeName?: string;
+    recipeImageUrl?: string | null;
     isFromRecipe?: boolean;
     shouldAutoOpen?: boolean;
 }

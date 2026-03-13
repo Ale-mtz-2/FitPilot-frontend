@@ -769,7 +769,7 @@ export function MenuCreationPage() {
                         quantity: sel.grams,
                         equivalent_quantity: sel.calculatedExchanges,
                         serving_unit_id: null, // Default to grams for now
-                        recipe_id: null // Tracking recipe ID is not fully supported in local state yet
+                        recipe_id: sel.recipeId ?? null
                     }));
                 })
             }))
@@ -1467,6 +1467,9 @@ onSelect={async (recipeId) => {
                                                                 calculatedExchanges: calculatedExchanges,
                                                                 nutritionValueId: nutritionValue?.id,
                                                                 _foodRef: fullFood,
+                                                                recipeId: selectedRecipe.id,
+                                                                recipeName: selectedRecipe.name,
+                                                                recipeImageUrl: selectedRecipe.image_url,
                                                                 isFromRecipe: true
                                                             };
                                                         });
