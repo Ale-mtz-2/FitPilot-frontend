@@ -10,6 +10,14 @@ export interface RecipeNutritionSummary {
     fiber_g: number;
 }
 
+export const EMPTY_RECIPE_NUTRITION_SUMMARY: RecipeNutritionSummary = {
+    calories_kcal: 0,
+    protein_g: 0,
+    carbs_g: 0,
+    fat_g: 0,
+    fiber_g: 0,
+};
+
 export interface RecipeIngredient {
     id: number;
     food_id: number;
@@ -35,7 +43,7 @@ export interface RecipeListItem {
     created_at: string;
     updated_at: string;
     ingredient_count: number;
-    nutrition_summary: RecipeNutritionSummary;
+    nutrition_summary?: RecipeNutritionSummary | null;
 }
 
 export interface RecipeDetail extends RecipeListItem {

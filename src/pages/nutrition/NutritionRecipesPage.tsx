@@ -14,7 +14,12 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Modal } from '@/components/common/Modal';
 import { useDeleteRecipe, useDuplicateRecipe, useRecipeCatalog } from '@/features/recipes/queries';
-import type { RecipeListItem, RecipeScope } from '@/features/recipes/types';
+import {
+    EMPTY_RECIPE_NUTRITION_SUMMARY,
+    type RecipeListItem,
+    type RecipeNutritionSummary,
+    type RecipeScope,
+} from '@/features/recipes/types';
 
 const PAGE_SIZE = 9;
 
@@ -38,6 +43,8 @@ const formatDate = (value: string) => {
 };
 
 const formatMacroValue = (value: number, suffix: string) => `${value.toFixed(1)}${suffix}`;
+const getRecipeNutritionSummary = (recipe: RecipeListItem): RecipeNutritionSummary =>
+    recipe.nutrition_summary ?? EMPTY_RECIPE_NUTRITION_SUMMARY;
 
 function RecipeCard({
     recipe,
@@ -55,6 +62,7 @@ function RecipeCard({
     deleteDisabled: boolean;
 }) {
     const isTemplate = recipe.is_template;
+    const nutritionSummary = getRecipeNutritionSummary(recipe);
 
     return (
         <motion.article
@@ -92,25 +100,25 @@ function RecipeCard({
                     <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
                         <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">Kcal</div>
                         <div className="mt-1 text-lg font-bold text-gray-900">
-                            {recipe.nutrition_summary.calories_kcal.toFixed(0)}
+                            {nutritionSummary.calories_kcal.toFixed(0)}
                         </div>
                     </div>
                     <div className="rounded-2xl border border-red-100 bg-red-50/70 px-4 py-3">
                         <div className="text-xs font-semibold uppercase tracking-wide text-red-400">Proteina</div>
                         <div className="mt-1 text-lg font-bold text-gray-900">
-                            {formatMacroValue(recipe.nutrition_summary.protein_g, 'g')}
+                            {formatMacroValue(nutritionSummary.protein_g, 'g')}
                         </div>
                     </div>
                     <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3">
                         <div className="text-xs font-semibold uppercase tracking-wide text-blue-400">Carbs</div>
                         <div className="mt-1 text-lg font-bold text-gray-900">
-                            {formatMacroValue(recipe.nutrition_summary.carbs_g, 'g')}
+                            {formatMacroValue(nutritionSummary.carbs_g, 'g')}
                         </div>
                     </div>
                     <div className="rounded-2xl border border-orange-100 bg-orange-50/70 px-4 py-3">
                         <div className="text-xs font-semibold uppercase tracking-wide text-orange-400">Grasas</div>
                         <div className="mt-1 text-lg font-bold text-gray-900">
-                            {formatMacroValue(recipe.nutrition_summary.fat_g, 'g')}
+                            {formatMacroValue(nutritionSummary.fat_g, 'g')}
                         </div>
                     </div>
                 </div>
