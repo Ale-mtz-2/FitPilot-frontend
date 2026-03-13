@@ -4,7 +4,11 @@ export const calculateAgeFromDateOfBirth = (
 ): number | undefined => {
   if (!dateOfBirth) return undefined;
 
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOfBirth);
+  const normalized = dateOfBirth.trim();
+  if (!normalized) return undefined;
+
+  const dateOnly = normalized.length >= 10 ? normalized.slice(0, 10) : normalized;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOnly);
   if (!match) return undefined;
 
   const year = Number(match[1]);
