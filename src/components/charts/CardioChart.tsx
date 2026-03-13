@@ -7,6 +7,11 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import type {
+  Formatter,
+  NameType,
+  ValueType,
+} from 'recharts/types/component/DefaultTooltipContent';
 import { Card } from '../common/Card';
 import {
   type DayCardioMetrics,
@@ -25,6 +30,18 @@ interface ChartDataItem {
   zone4_5: number;
   total: number;
 }
+
+const toTooltipNumber = (value: ValueType | undefined) => {
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return Number(value[0] ?? 0);
+  }
+
+  return Number(value ?? 0);
+};
 
 export function CardioChart({ cardioMetrics }: CardioChartProps) {
   // Check if there's any cardio data
@@ -69,6 +86,18 @@ export function CardioChart({ cardioMetrics }: CardioChartProps) {
   // Calculate max for Y axis
   const maxMinutes = Math.max(...chartData.map((d) => d.total), 60);
 
+  const cardioTooltipFormatter: Formatter<ValueType, NameType> = (value, name) => {
+    const numericValue = toTooltipNumber(value);
+    const key = String(name ?? '');
+    const labels: Record<string, string> = {
+      zone1_2: `${getCardioZoneLabel(1)}/${getCardioZoneLabel(2)}`,
+      zone3: getCardioZoneLabel(3),
+      zone4_5: `${getCardioZoneLabel(4)}/${getCardioZoneLabel(5)}`,
+    };
+
+    return [`${numericValue} min`, labels[key] || key];
+  };
+
   return (
     <Card>
       <h4 className="text-sm font-semibold text-gray-700 mb-3">Cardio Summary</h4>
@@ -85,16 +114,7 @@ export function CardioChart({ cardioMetrics }: CardioChartProps) {
             />
             <Tooltip
               contentStyle={{ fontSize: 12, borderRadius: 8 }}
-              formatter={(value, name) => {
-                const numericValue = typeof value === 'number' ? value : Number(value ?? 0);
-                const key = String(name ?? '');
-                const labels: Record<string, string> = {
-                  zone1_2: `${getCardioZoneLabel(1)}/${getCardioZoneLabel(2)}`,
-                  zone3: getCardioZoneLabel(3),
-                  zone4_5: `${getCardioZoneLabel(4)}/${getCardioZoneLabel(5)}`,
-                };
-                return [`${numericValue} min`, labels[key] || key];
-              }}
+              formatter={cardioTooltipFormatter}
             />
             <Bar
               dataKey="zone1_2"
