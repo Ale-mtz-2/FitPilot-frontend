@@ -13,6 +13,16 @@ export type ResolvedPlanAccess = {
   firstAllowedRoute: string;
 };
 
+export type SubscriptionState = 'none' | 'expired' | 'scheduled_cancelation' | 'active';
+
+export type ResolvedSubscriptionState = {
+  status: SubscriptionState;
+  currentSubscription: User['current_subscription'] | null;
+  hasSubscriptionAccess: boolean;
+  isCancellationScheduled: boolean;
+  accessEndsAt: string | null;
+};
+
 export type TrainingAIAccessReason =
   | 'ok'
   | 'missing_user'
@@ -102,6 +112,19 @@ const getCurrentPlanName = (user: User | null): string | null => {
   }
 
   return null;
+};
+
+const getSubscriptionAccessEndsAt = (user: User | null): string | null => {
+  const subscription = user?.current_subscription;
+  const vigency = user?.subscription_vigency;
+
+  return (
+    vigency?.end_at ??
+    subscription?.current_period_end ??
+    subscription?.trial_end ??
+    subscription?.ended_at ??
+    null
+  );
 };
 
 const getFirstAllowedRoute = (canAccessNutrition: boolean, canAccessTraining: boolean) => {
@@ -302,6 +325,44 @@ export const resolvePlanAccess = (user: User | null): ResolvedPlanAccess => {
       planRule.canAccessNutrition,
       planRule.canAccessTraining,
     ),
+  };
+};
+
+export const resolveSubscriptionState = (user: User | null): ResolvedSubscriptionState => {
+  const currentSubscription = user?.current_subscription ?? null;
+  const hasSubscriptionAccess =
+    user?.has_active_subscription === true ||
+    user?.subscription_vigency?.is_vigent === true;
+  const isCancellationScheduled =
+    currentSubscription?.cancel_at_period_end === true && hasSubscriptionAccess;
+  const hasKnownSubscription = Boolean(currentSubscription || user?.subscriptions?.length);
+
+  if (hasSubscriptionAccess) {
+    return {
+      status: isCancellationScheduled ? 'scheduled_cancelation' : 'active',
+      currentSubscription,
+      hasSubscriptionAccess,
+      isCancellationScheduled,
+      accessEndsAt: getSubscriptionAccessEndsAt(user),
+    };
+  }
+
+  if (hasKnownSubscription) {
+    return {
+      status: 'expired',
+      currentSubscription,
+      hasSubscriptionAccess: false,
+      isCancellationScheduled: false,
+      accessEndsAt: getSubscriptionAccessEndsAt(user),
+    };
+  }
+
+  return {
+    status: 'none',
+    currentSubscription,
+    hasSubscriptionAccess: false,
+    isCancellationScheduled: false,
+    accessEndsAt: null,
   };
 };
 

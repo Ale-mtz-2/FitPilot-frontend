@@ -18,6 +18,10 @@ export interface CreateCheckoutSessionPayload {
   cancel_url?: string;
 }
 
+export interface CreatePortalSessionPayload {
+  return_url?: string;
+}
+
 export type CancelSubscriptionMode = 'immediately' | 'period_end';
 
 export interface CancelSubscriptionPayload {
@@ -36,10 +40,22 @@ export interface ManagedSubscription {
   ended_at?: string | null;
 }
 
+export interface SubscriptionActionResponse {
+  message?: string;
+  subscription?: ManagedSubscription | null;
+}
+
 export interface CreateCheckoutSessionResponse {
   url?: string;
   checkout_url?: string;
   session_url?: string;
+  code?: string;
+  [key: string]: unknown;
+}
+
+export interface CreatePortalSessionResponse {
+  id?: string;
+  url?: string;
   [key: string]: unknown;
 }
 
@@ -57,3 +73,5 @@ export interface CancelSubscriptionResponse {
   cancel_mode?: CancelSubscriptionMode;
   subscription?: ManagedSubscription | null;
 }
+
+export interface ResumeSubscriptionResponse extends SubscriptionActionResponse {}

@@ -145,12 +145,43 @@
     "select": "Seleccionar enfoque"
   },
   "templates": {
-    "title": "Plantillas de Entrenamiento",
+    "title": "Planes de Entrenamiento",
     "subtitle": "Crea plantillas de entrenamiento reutilizables para asignar a clientes",
     "description": "Crea plantillas de entrenamiento reutilizables que pueden asignarse a múltiples clientes. Las plantillas contienen mesociclos, microciclos (semanas), días de entrenamiento y ejercicios.",
     "new": "Nueva Plantilla",
     "noTemplates": "No hay plantillas aún",
-    "createFirst": "Crear Primera Plantilla"
+    "createFirst": "Crear Primera Plantilla",
+    "loadingTitle": "Preparando tus programas",
+    "loadingDescription": "Estamos cargando tus plantillas y programas para que puedas asignarlos o editarlos.",
+    "emptyHint": "Empieza con una estructura base y reutilÃ­zala con cada nuevo cliente.",
+    "defaultDescription": "Sin descripciÃ³n disponible todavÃ­a.",
+    "deleteSuccess": "Programa eliminado correctamente",
+    "assignmentSuccess": "Programa asignado correctamente",
+    "assignmentError": "Error al asignar plantilla",
+    "assign": "Asignar",
+    "assignTitle": "Asignar a Cliente",
+    "assignDescription": "Duplica este programa y ajÃºstalo a una nueva fecha de inicio.",
+    "assignCta": "Asignar programa",
+    "assigning": "Asignando...",
+    "selectClientPlaceholder": "Seleccionar cliente...",
+    "badges": {
+      "template": "Plantilla",
+      "assigned": "Asignado"
+    },
+    "stats": {
+      "total": "Programas totales",
+      "templates": "Plantillas",
+      "assigned": "Asignados"
+    },
+    "metrics": {
+      "duration": "DuraciÃ³n",
+      "mesocycles": "Bloques"
+    },
+    "fields": {
+      "client": "Cliente",
+      "startDate": "Fecha de inicio",
+      "projectedEndDate": "Fecha final estimada"
+    }
   },
   "clientPlans": {
     "title": "Planes Clientes",

@@ -15,6 +15,7 @@ import { NutritionClientsPage } from './pages/nutrition/NutritionClientsPage';
 import { NutritionDashboardPage } from './pages/nutrition/NutritionDashboardPage';
 import { NutritionAgendaPage } from './pages/nutrition/NutritionAgendaPage';
 import { NutritionLayout } from './components/layout/NutritionLayout';
+import { TrainingLayout } from './components/layout/TrainingLayout';
 import { NutritionClientDetailPage } from './pages/nutrition/NutritionClientDetailPage';
 import { NutritionClientMedicalHistoryPage } from './pages/nutrition/NutritionClientMedicalHistoryPage';
 import { NutritionClientMeasurementsHistoryPage } from './pages/nutrition/NutritionClientMeasurementsHistoryPage';
@@ -154,26 +155,22 @@ function App() {
         />
 
         <Route
-          path="/training/exercises"
+          path="/training"
           element={
             <ProtectedRoute requiredAccess="training">
               <MainLayout>
-                <ExercisesPage />
+                <TrainingLayout />
               </MainLayout>
             </ProtectedRoute>
           }
-        />
-
-        <Route
-          path="/training/programs"
-          element={
-            <ProtectedRoute requiredAccess="training">
-              <MainLayout>
-                <TrainingTemplatesPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
+        >
+          <Route index element={<Navigate to="programs" replace />} />
+          <Route path="exercises" element={<ExercisesPage />} />
+          <Route path="programs" element={<TrainingTemplatesPage />} />
+          <Route path="programs/new" element={<MesocycleEditorPage />} />
+          <Route path="programs/:id" element={<MesocycleEditorPage />} />
+          <Route path="ai-generator" element={<AIGeneratorPage />} />
+        </Route>
 
         <Route
           path="/client-plans"
@@ -205,39 +202,6 @@ function App() {
         />
 
         <Route
-          path="/training/ai-generator"
-          element={
-            <ProtectedRoute requiredAccess="training">
-              <MainLayout>
-                <AIGeneratorPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/training/programs/new"
-          element={
-            <ProtectedRoute requiredAccess="training">
-              <MainLayout>
-                <MesocycleEditorPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/training/programs/:id"
-          element={
-            <ProtectedRoute requiredAccess="training">
-              <MainLayout>
-                <MesocycleEditorPage />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
           path="/exercises"
           element={<Navigate to="/training/exercises" replace />}
         />
@@ -256,11 +220,6 @@ function App() {
         <Route
           path="/mesocycles/:id"
           element={<LegacyMesocycleRedirect />}
-        />
-
-        <Route
-          path="/training"
-          element={<Navigate to="/training/programs" replace />}
         />
 
         <Route

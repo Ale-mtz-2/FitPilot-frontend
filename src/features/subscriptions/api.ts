@@ -4,6 +4,9 @@ import {
   CancelSubscriptionResponse,
   CreateCheckoutSessionPayload,
   CreateCheckoutSessionResponse,
+  CreatePortalSessionPayload,
+  CreatePortalSessionResponse,
+  ResumeSubscriptionResponse,
   SubscriptionPlan,
   VerifyCheckoutSessionResponse,
 } from './types';
@@ -49,12 +52,29 @@ export const verifyCheckoutSession = async (
   return data;
 };
 
+export const createPortalSession = async (
+  payload: CreatePortalSessionPayload = {}
+): Promise<CreatePortalSessionResponse> => {
+  const { data } = await client.post<CreatePortalSessionResponse>(
+    '/v1/billing/portal-session',
+    payload
+  );
+  return data;
+};
+
 export const cancelSubscription = async (
   payload: CancelSubscriptionPayload
 ): Promise<CancelSubscriptionResponse> => {
   const { data } = await client.post<CancelSubscriptionResponse>(
     '/v1/billing/subscription/cancel',
     payload
+  );
+  return data;
+};
+
+export const resumeSubscription = async (): Promise<ResumeSubscriptionResponse> => {
+  const { data } = await client.post<ResumeSubscriptionResponse>(
+    '/v1/billing/subscription/resume'
   );
   return data;
 };

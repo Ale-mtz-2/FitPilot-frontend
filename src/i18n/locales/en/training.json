@@ -150,7 +150,38 @@
     "description": "Create reusable training templates that can be assigned to multiple clients. Templates contain mesocycles, microcycles (weeks), training days, and exercises.",
     "new": "New Template",
     "noTemplates": "No templates yet",
-    "createFirst": "Create First Template"
+    "createFirst": "Create First Template",
+    "loadingTitle": "Preparing your programs",
+    "loadingDescription": "We are loading your templates and programs so you can assign or edit them.",
+    "emptyHint": "Start from a base structure and reuse it with every new client.",
+    "defaultDescription": "No description available yet.",
+    "deleteSuccess": "Program deleted successfully",
+    "assignmentSuccess": "Program assigned successfully",
+    "assignmentError": "Failed to assign template",
+    "assign": "Assign",
+    "assignTitle": "Assign to Client",
+    "assignDescription": "Duplicate this program and shift it to a new start date.",
+    "assignCta": "Assign program",
+    "assigning": "Assigning...",
+    "selectClientPlaceholder": "Select client...",
+    "badges": {
+      "template": "Template",
+      "assigned": "Assigned"
+    },
+    "stats": {
+      "total": "Total programs",
+      "templates": "Templates",
+      "assigned": "Assigned"
+    },
+    "metrics": {
+      "duration": "Duration",
+      "mesocycles": "Blocks"
+    },
+    "fields": {
+      "client": "Client",
+      "startDate": "Start date",
+      "projectedEndDate": "Projected end date"
+    }
   },
   "clientPlans": {
     "title": "Client Plans",
