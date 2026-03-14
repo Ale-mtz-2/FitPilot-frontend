@@ -21,6 +21,14 @@ export interface MacrocycleUpdateData {
   status?: 'draft' | 'active' | 'completed' | 'archived';
 }
 
+export interface MacrocycleActivationResponse {
+  macrocycle: Macrocycle;
+  effective_start_date: string;
+  shifted_training_day_count: number;
+  archived_macrocycle_ids: string[];
+  completed_macrocycle_ids: string[];
+}
+
 interface MacrocycleListResponse {
   total: number;
   macrocycles: Macrocycle[];
@@ -164,6 +172,10 @@ export const mesocyclesService = {
 
   async updateMacrocycle(id: string, data: MacrocycleUpdateData): Promise<Macrocycle> {
     return apiClient.put<Macrocycle>(`/mesocycles/${id}`, data);
+  },
+
+  async activateMacrocycle(id: string): Promise<MacrocycleActivationResponse> {
+    return apiClient.post<MacrocycleActivationResponse>(`/mesocycles/${id}/activate`, {});
   },
 
   async deleteMacrocycle(id: string): Promise<void> {
@@ -343,3 +355,4 @@ export const getAll = mesocyclesService.getAllMacrocycles;
 export const getById = mesocyclesService.getMacrocycleById;
 export const create = mesocyclesService.createMacrocycle;
 export const update = mesocyclesService.updateMacrocycle;
+export const activate = mesocyclesService.activateMacrocycle;

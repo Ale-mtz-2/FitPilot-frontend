@@ -21,6 +21,7 @@ import { format, parseISO, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Input } from '@/components/common/Input';
 import { DatePicker } from '@/components/common/DatePicker';
+import { matchesNormalizedQuery, normalizeSearchText } from '@/utils/search';
 
 export function DraftMenusPage() {
     const navigate = useNavigate();
@@ -49,11 +50,10 @@ export function DraftMenusPage() {
 
         // Filter by Client Name
         if (searchTerm) {
-            const lowerTerm = searchTerm.toLowerCase();
+            const normalizedTerm = normalizeSearchText(searchTerm);
             result = result.filter(draft => {
                 const client = clients?.find(c => Number(c.id) === Number(draft.client_id));
-                const clientName = client?.name?.toLowerCase() || '';
-                return clientName.includes(lowerTerm);
+                return matchesNormalizedQuery(client?.name || '', normalizedTerm);
             });
         }
 

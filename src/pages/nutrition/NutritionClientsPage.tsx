@@ -9,6 +9,7 @@ import { useProfessionalClients } from '@/features/professional-clients/queries'
 import { useGetAppointments } from '@/features/appointments/queries';
 import { IProfessionalClient } from '@/features/professional-clients/types';
 import { resolvePlanAccess } from '@/features/subscriptions/planAccess';
+import { matchesNormalizedQuery } from '@/utils/search';
 import { isAfter, parseISO } from 'date-fns';
 
 // Mapear los campos de la API a lo que espera la UI
@@ -75,7 +76,7 @@ export function NutritionClientsPage() {
     const filteredClients = useMemo(() => {
         return clients
             .filter(client =>
-                `${client.name} ${client.lastname}`.toLowerCase().includes(searchTerm.toLowerCase())
+                matchesNormalizedQuery(`${client.name} ${client.lastname}`, searchTerm)
                 // (filterType === 'all' || client.role === filterType)
             )
             .sort((a, b) => {

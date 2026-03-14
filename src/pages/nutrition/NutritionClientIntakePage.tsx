@@ -27,6 +27,7 @@ import {
   createEmptyInjury,
 } from '@/features/client-intake/types';
 import { getApiErrorMessage } from '@/utils/apiError';
+import { matchesNormalizedQuery, normalizeSearchText } from '@/utils/search';
 
 const INTAKE_STEPS = [
   { id: 'goals', label: 'Objetivos' },
@@ -118,20 +119,20 @@ export function NutritionClientIntakePage() {
     clientHistory?.onboarding_status?.toLowerCase() === 'completed';
 
   const filteredGoals = useMemo(() => {
-    const normalizedQuery = goalsSearch.trim().toLowerCase();
+    const normalizedQuery = normalizeSearchText(goalsSearch);
     if (!normalizedQuery) return goalsCatalog;
 
     return goalsCatalog.filter((goal) =>
-      goal.name.toLowerCase().includes(normalizedQuery),
+      matchesNormalizedQuery(goal.name, normalizedQuery),
     );
   }, [goalsCatalog, goalsSearch]);
 
   const filteredAllergens = useMemo(() => {
-    const normalizedQuery = allergensSearch.trim().toLowerCase();
+    const normalizedQuery = normalizeSearchText(allergensSearch);
     if (!normalizedQuery) return allergensCatalog;
 
     return allergensCatalog.filter((allergen) =>
-      allergen.name.toLowerCase().includes(normalizedQuery),
+      matchesNormalizedQuery(allergen.name, normalizedQuery),
     );
   }, [allergensCatalog, allergensSearch]);
 

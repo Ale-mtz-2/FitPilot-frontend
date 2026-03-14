@@ -25,6 +25,7 @@ import {
   SparklesIcon,
   XMarkIcon,
   InformationCircleIcon,
+  RocketLaunchIcon,
 } from '@heroicons/react/24/outline';
 import type { Exercise, Microcycle } from '../types';
 
@@ -118,6 +119,7 @@ export function MesocycleEditorPage() {
     loadMacrocycle,
     createMacrocycle,
     updateMacrocycle,
+    activateMacrocycle,
     createMesocycle,
     createMicrocycle,
     updateMicrocycle,
@@ -133,6 +135,7 @@ export function MesocycleEditorPage() {
   } = useMesocycleStore();
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
   const [showExerciseSelector, setShowExerciseSelector] = useState(false);
   const [selectedContext, setSelectedContext] = useState<{
     macrocycleId: string;
@@ -214,7 +217,6 @@ export function MesocycleEditorPage() {
           objective: data.objective,
           start_date: data.start_date,
           end_date: data.end_date,
-          status: data.status,
         });
         toast.success('Training program updated successfully');
       }
@@ -222,6 +224,32 @@ export function MesocycleEditorPage() {
       toast.error(error.message || 'Failed to save training program');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleActivateMacrocycle = async () => {
+    if (!id || !currentMacrocycle?.client_id) {
+      return;
+    }
+
+    setIsActivating(true);
+    try {
+      const response = await activateMacrocycle(id);
+      await loadMacrocycle(id);
+
+      const replacedPrograms = response.archived_macrocycle_ids.length + response.completed_macrocycle_ids.length;
+      const shiftedLabel =
+        response.shifted_training_day_count === 1
+          ? '1 training day shifted'
+          : `${response.shifted_training_day_count} training days shifted`;
+      const replacementLabel =
+        replacedPrograms > 0 ? ` ${replacedPrograms} previous active program updated.` : '';
+
+      toast.success(`Program activated. ${shiftedLabel}.${replacementLabel}`.trim());
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to activate training program');
+    } finally {
+      setIsActivating(false);
     }
   };
 
@@ -778,6 +806,17 @@ export function MesocycleEditorPage() {
   const currentMesocycles = currentMacrocycle
     ? mesocycles[currentMacrocycle.id] || []
     : [];
+  const canActivateCurrentMacrocycle = Boolean(
+    !isNew && currentMacrocycle?.client_id && currentMacrocycle.status !== 'active'
+  );
+  const currentStatusMeta = currentMacrocycle
+    ? {
+        draft: { label: 'Borrador', className: 'bg-amber-100 text-amber-800 border-amber-200' },
+        active: { label: 'Activo', className: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+        completed: { label: 'Completado', className: 'bg-sky-100 text-sky-800 border-sky-200' },
+        archived: { label: 'Archivado', className: 'bg-slate-100 text-slate-700 border-slate-200' },
+      }[currentMacrocycle.status]
+    : null;
 
   if (isLoadingMacrocycle && !isNew) {
     return (
@@ -821,6 +860,16 @@ export function MesocycleEditorPage() {
                 <SparklesIcon className="h-5 w-5 mr-2" />
                 {t('training:macrocycle.generateWithAi')}
               </Button>
+              {canActivateCurrentMacrocycle ? (
+                <Button
+                  variant="secondary"
+                  onClick={handleActivateMacrocycle}
+                  isLoading={isActivating}
+                >
+                  <RocketLaunchIcon className="h-5 w-5 mr-2" />
+                  Activar programa
+                </Button>
+              ) : null}
               <Button
                 variant="primary"
                 onClick={handleSubmit(onSubmit)}
@@ -832,6 +881,11 @@ export function MesocycleEditorPage() {
             </div>
             {!canUseAIGenerator && aiRestrictionMessage ? (
               <p className="text-xs text-amber-700">{aiRestrictionMessage}</p>
+            ) : null}
+            {canActivateCurrentMacrocycle ? (
+              <p className="text-xs text-slate-500">
+                La activación reagenda el programa desde la fecha vigente y desactiva cualquier programa activo previo.
+              </p>
             ) : null}
           </div>
         </div>
@@ -910,15 +964,22 @@ export function MesocycleEditorPage() {
               {!isNew && (
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Estado</label>
-                  <select
-                    {...register('status')}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  <div
+                    className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium ${
+                      currentStatusMeta?.className || 'bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
                   >
-                    <option value="draft">Borrador</option>
-                    <option value="active">Activo</option>
-                    <option value="completed">Completado</option>
-                    <option value="archived">Archivado</option>
-                  </select>
+                    {currentStatusMeta?.label || currentMacrocycle?.status || 'Sin estado'}
+                  </div>
+                  {currentMacrocycle?.client_id ? (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Los programas asignados se activan con el botón de activación.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Las plantillas sin cliente asignado no se activan para consumo del cliente.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

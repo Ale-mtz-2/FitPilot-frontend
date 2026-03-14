@@ -4,6 +4,7 @@ import { useGetMenus } from '@/features/menus/queries';
 import { Search, Loader2, Check, Flame, Scale, ChefHat } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { IMenu } from '@/features/menus/types';
+import { matchesAnyNormalizedQuery } from '@/utils/search';
 
 interface AssignMenuModalProps {
     isOpen: boolean;
@@ -24,8 +25,7 @@ export function AssignMenuModal({ isOpen, onClose, professionalId, clientName, o
     const filteredMenus = useMemo(() => {
         if (!menus) return [];
         return menus.filter(menu => 
-            (menu.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (menu.description_ || '').toLowerCase().includes(searchQuery.toLowerCase())
+            matchesAnyNormalizedQuery([menu.title, menu.description_], searchQuery)
         );
     }, [menus, searchQuery]);
 

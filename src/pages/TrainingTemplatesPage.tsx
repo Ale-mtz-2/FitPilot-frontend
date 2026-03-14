@@ -80,13 +80,27 @@ export function TrainingTemplatesPage() {
       const newStart = new Date(assignStartDate + 'T00:00:00');
       const newEnd = new Date(newStart.getTime() + durationMs);
 
+      const shiftDate = (value?: string | null) => {
+        if (!value) {
+          return value;
+        }
+
+        const originalDate = new Date(`${value}T00:00:00`);
+        if (Number.isNaN(originalDate.getTime())) {
+          return value;
+        }
+
+        const offsetMs = originalDate.getTime() - origStart.getTime();
+        return format(new Date(newStart.getTime() + offsetMs), 'yyyy-MM-dd');
+      };
+
       // Map nested data to omit IDs
       const mapMesocycle = (meso: any) => ({
         block_number: meso.block_number,
         name: meso.name,
         description: meso.description,
-        start_date: meso.start_date,
-        end_date: meso.end_date,
+        start_date: shiftDate(meso.start_date),
+        end_date: shiftDate(meso.end_date),
         focus: meso.focus,
         notes: meso.notes,
         microcycles: (meso.microcycles || []).map(mapMicrocycle)
@@ -95,8 +109,8 @@ export function TrainingTemplatesPage() {
       const mapMicrocycle = (micro: any) => ({
         week_number: micro.week_number,
         name: micro.name,
-        start_date: micro.start_date,
-        end_date: micro.end_date,
+        start_date: shiftDate(micro.start_date),
+        end_date: shiftDate(micro.end_date),
         intensity_level: micro.intensity_level,
         notes: micro.notes,
         training_days: (micro.training_days || []).map(mapTrainingDay)
@@ -104,7 +118,7 @@ export function TrainingTemplatesPage() {
 
       const mapTrainingDay = (day: any) => ({
         day_number: day.day_number,
-        date: day.date,
+        date: shiftDate(day.date),
         name: day.name,
         focus: day.focus,
         rest_day: day.rest_day,

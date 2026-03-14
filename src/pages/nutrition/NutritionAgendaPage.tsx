@@ -42,6 +42,7 @@ import { useProfessionalClients, useAvailableSlots } from '@/features/profession
 import { IProfessionalClient } from '@/features/professional-clients/types';
 import { useProfessional } from '@/contexts/ProfessionalContext';
 import { useGetAppointments, useInsertAppointment, useDeleteAppointment, useUpdateAppointment } from '@/features/appointments/queries';
+import { matchesNormalizedQuery } from '@/utils/search';
 
 interface Appointment {
     id: number;
@@ -254,7 +255,7 @@ export function NutritionAgendaPage() {
     const upcomingAppointments = appointments
         .filter(app => {
             const appDate = startOfDay(app.date);
-            const matchesSearch = app.clientName.toLowerCase().includes(sessionFilterQuery.toLowerCase());
+            const matchesSearch = matchesNormalizedQuery(app.clientName, sessionFilterQuery);
             return (isAfter(appDate, today) || isSameDay(appDate, today)) && 
                    (apiAppointments?.find(a => a.id === app.id)?.status !== 'completed') &&
                    matchesSearch;
@@ -264,7 +265,7 @@ export function NutritionAgendaPage() {
     const historyAppointments = appointments
         .filter(app => {
             const raw = apiAppointments?.find(a => a.id === app.id);
-            const matchesSearch = app.clientName.toLowerCase().includes(sessionFilterQuery.toLowerCase());
+            const matchesSearch = matchesNormalizedQuery(app.clientName, sessionFilterQuery);
             return (isBefore(app.date, today) || raw?.status === 'completed') && matchesSearch;
         })
         .sort((a, b) => b.date.getTime() - a.date.getTime());
@@ -750,7 +751,7 @@ export function NutritionAgendaPage() {
 
                                                 <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
                                                     {(realClients || []).filter((c: IProfessionalClient) =>
-                                                        `${c.name}`.toLowerCase().includes(searchQuery.toLowerCase())
+                                                        matchesNormalizedQuery(`${c.name}`, searchQuery)
                                                     ).map((client: IProfessionalClient) => (
                                                         <button
                                                             key={client.id}

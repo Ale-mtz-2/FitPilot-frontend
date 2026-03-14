@@ -3,6 +3,7 @@ import { Dialog, Transition } from '@headlessui/react';
 import { Search, X, Check, Loader2 } from 'lucide-react';
 import { IProfessionalClient } from '@/features/professional-clients/types';
 import { motion } from 'framer-motion';
+import { matchesAnyNormalizedQuery } from '@/utils/search';
 
 interface EnhancedClientSelectorModalProps {
     isOpen: boolean;
@@ -20,9 +21,7 @@ export function EnhancedClientSelectorModal({ isOpen, onClose, onSelect, clients
     const filteredClients = useMemo(() => {
         if (!clients) return [];
         const filtered = clients.filter(client =>
-            client.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            client.lastname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            client.email?.toLowerCase().includes(searchQuery.toLowerCase())
+            matchesAnyNormalizedQuery([client.name, client.lastname, client.email], searchQuery)
         );
         return filtered;
     }, [clients, searchQuery]);

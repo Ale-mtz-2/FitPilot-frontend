@@ -5,10 +5,10 @@ import { FoodSearchResult, IFoodItem } from "./types";
 /**
  * Hook to fetch foods by exchange group.
  */
-export const useGetFoodsByExchangeGroup = (groupId?: number) => {
+export const useGetFoodsByExchangeGroup = (groupId?: number, professionalId?: number) => {
     return useQuery<IFoodItem[], Error>({
-        queryKey: ["foods", "exchange-group", groupId],
-        queryFn: () => getFoodsByExchangeGroup(groupId!),
+        queryKey: ["foods", "exchange-group", groupId, professionalId],
+        queryFn: () => getFoodsByExchangeGroup(groupId!, professionalId),
         enabled: !!groupId,
     });
 };
@@ -16,10 +16,11 @@ export const useGetFoodsByExchangeGroup = (groupId?: number) => {
 /**
  * Hook to fetch all foods.
  */
-export const useGetFoods = () => {
+export const useGetFoods = (professionalId?: number, enabled = true) => {
     return useQuery<IFoodItem[], Error>({
-        queryKey: ["foods"],
-        queryFn: getFoods,
+        queryKey: ["foods", "all", professionalId],
+        queryFn: () => getFoods(professionalId),
+        enabled,
     });
 };
 

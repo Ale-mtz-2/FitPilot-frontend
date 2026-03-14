@@ -1,4 +1,4 @@
-import { IExchangeGroup } from "../exchange-groups/types";
+import { IExchangeGroup, IExchangeSubgroup } from "../exchange-groups/types";
 import { IMicronutrient } from "../micronutrients/types";
 
 export interface IFoodCategory {
@@ -60,6 +60,7 @@ export interface IFoodItem {
     brand: string | null;
     category_id: number;
     exchange_group_id: number;
+    exchange_subgroup_id?: number | null;
     image_url?: string;
     is_recipe: boolean;
     base_serving_size: string | number;
@@ -76,6 +77,7 @@ export interface IFoodItem {
     micronutrients: IFoodItemMicronutrient[];
     food_categories: IFoodCategory;
     exchange_groups: IExchangeGroup;
+    exchange_subgroups?: IExchangeSubgroup | null;
     food_nutrition_values: IFoodNutritionValue[];
     serving_units: IServingUnit[];
     updated_at?: string;

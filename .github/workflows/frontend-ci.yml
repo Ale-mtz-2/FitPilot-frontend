@@ -10,7 +10,7 @@ env:
   NODE_VERSION: "20"
   DEPLOY_PATH: ${{ vars.VPS_FRONTEND_PATH || '/var/www/pro.fitpilot/html' }}
   VITE_NUTRITION_API_URL: ${{ vars.VITE_NUTRITION_API_URL || 'https://nutrition-api.fitpilot.fit' }}
-  VITE_TRAINING_API_URL: ${{ vars.VITE_TRAINING_API_URL || 'http://localhost:3000' }}
+  VITE_TRAINING_API_URL: ${{ vars.VITE_TRAINING_API_URL || 'https://training-api.fitpilot.fit/' }}
 
 concurrency:
   group: frontend-static-deploy
@@ -23,10 +23,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
