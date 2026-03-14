@@ -178,6 +178,65 @@ export interface ClientMetricHistory {
   appointment_id?: number | null;
 }
 
+export interface MeasurementMutationPayload {
+  weight_kg?: number | null;
+  height_cm?: number | null;
+  body_fat_pct?: number | null;
+  upper_body_fat_pct?: number | null;
+  lower_body_fat_pct?: number | null;
+  fat_free_mass_kg?: number | null;
+  muscle_mass_kg?: number | null;
+  bone_mass_kg?: number | null;
+  metabolic_age?: number | null;
+  visceral_fat?: number | null;
+  water_pct?: number | null;
+  waist_cm?: number | null;
+  hip_cm?: number | null;
+  chest_cm?: number | null;
+  cephalic_cm?: number | null;
+  neck_cm?: number | null;
+  relaxed_arm_midpoint_cm?: number | null;
+  contracted_arm_midpoint_cm?: number | null;
+  forearm_cm?: number | null;
+  wrist_cm?: number | null;
+  mesosternal_cm?: number | null;
+  umbilical_cm?: number | null;
+  biacromial_cm?: number | null;
+  biiliocrestal_cm?: number | null;
+  foot_length_cm?: number | null;
+  thorax_transverse_cm?: number | null;
+  thorax_anteroposterior_cm?: number | null;
+  humerus_biepicondylar_cm?: number | null;
+  wrist_bistyloid_cm?: number | null;
+  femur_biepicondylar_cm?: number | null;
+  bimaleolar_cm?: number | null;
+  foot_transverse_cm?: number | null;
+  hand_length_cm?: number | null;
+  hand_transverse_cm?: number | null;
+  arm_left_cm?: number | null;
+  arm_right_cm?: number | null;
+  mid_thigh_cm?: number | null;
+  calf_cm?: number | null;
+  thigh_left_cm?: number | null;
+  thigh_right_cm?: number | null;
+  calf_left_cm?: number | null;
+  calf_right_cm?: number | null;
+  subscapular_fold_mm?: number | null;
+  triceps_fold_mm?: number | null;
+  biceps_fold_mm?: number | null;
+  iliac_crest_fold_mm?: number | null;
+  supraspinal_fold_mm?: number | null;
+  abdominal_fold_mm?: number | null;
+  front_thigh_fold_mm?: number | null;
+  medial_calf_fold_mm?: number | null;
+  mid_axillary_fold_mm?: number | null;
+  pectoral_fold_mm?: number | null;
+}
+
+export interface CreateMeasurementPayload extends MeasurementMutationPayload {
+  user_id: number;
+}
+
 export type MeasurementCalculationStatus = "computed" | "skipped" | "error";
 
 export interface MeasurementCalculationValue {
@@ -204,11 +263,36 @@ export interface MeasurementCalculationRun {
   finishedAt: string | null;
 }
 
+export interface MeasurementChartEntry {
+  key: string;
+  label: string;
+  kind: "patient" | "theoretical";
+  value: number;
+  deltaFromPatient: number | null;
+}
+
+export interface MeasurementIdealWeightComparisonChart {
+  chartType: "horizontal_bar";
+  unit: "kg";
+  patientWeight: number | null;
+  theoreticalWeightAverage: number | null;
+  theoreticalWeightRange: {
+    min: number;
+    max: number;
+  } | null;
+  entries: MeasurementChartEntry[];
+}
+
+export interface MeasurementCharts {
+  idealWeightComparison: MeasurementIdealWeightComparisonChart | null;
+}
+
 export interface MeasurementDetailResponse {
   measurement: ClientMetricHistory;
   calculations: Record<string, MeasurementCalculationValue>;
   warnings: MeasurementCalculationWarning[];
   missingFieldsByCalculation: Record<string, string[]>;
+  charts: MeasurementCharts;
   calculationRun: MeasurementCalculationRun | null;
 }
 

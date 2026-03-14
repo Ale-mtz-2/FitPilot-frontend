@@ -1,9 +1,18 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
   Line,
   ReferenceLine,
   ResponsiveContainer,
@@ -19,6 +28,7 @@ import {
   Loader2,
   Maximize2,
   Minimize2,
+  Search,
   X,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
@@ -40,7 +50,10 @@ export interface MeasurementRecordMetric {
 }
 
 export interface MeasurementRecord {
+  recordId: string;
+  recordType: "measurement" | "health_metric";
   measurementId?: string;
+  healthMetricId?: string;
   rawDate: string;
   metrics: MeasurementRecordMetric[];
 }
@@ -65,6 +78,14 @@ interface MeasurementDetailsModalProps {
 
 type TimeFilter = "all" | "1d" | "1w" | "1m" | "custom";
 type MeasurementDetailsTab = "measurements" | "calculations";
+type MeasurementGroupId =
+  | "composicion"
+  | "segmental"
+  | "perimetros"
+  | "pliegues"
+  | "diametros"
+  | "salud"
+  | "otros";
 type CalculationSubsectionId =
   | "indicadores-antropometricos"
   | "peso-teorico"
@@ -101,6 +122,19 @@ type FrisanchoCalculationDetails = {
     adequacyPctOfP50?: number;
     approximatePercentile?: number | null;
   };
+};
+
+type MeasurementGroupDefinition = {
+  id: MeasurementGroupId;
+  label: string;
+  description: string;
+};
+
+type MeasurementCardItem = {
+  metric: MeasurementRecordMetric;
+  label: string;
+  groupId: MeasurementGroupId;
+  searchText: string;
 };
 
 const typeLabels: Record<ClientMetric["metric_type"], string> = {
@@ -211,6 +245,128 @@ const metricColors: Partial<Record<ClientMetric["metric_type"], string>> = {
   glucose: "#0284c7",
   heart_rate: "#e11d48",
   oxygen_saturation: "#0891b2",
+};
+
+const measurementGroupDefinitions: MeasurementGroupDefinition[] = [
+  {
+    id: "composicion",
+    label: "Composicion corporal",
+    description: "Peso y resultados generales de composicion corporal.",
+  },
+  {
+    id: "segmental",
+    label: "Composicion segmental",
+    description: "Distribucion corporal por zonas o segmentos.",
+  },
+  {
+    id: "perimetros",
+    label: "Perimetros",
+    description: "Circunferencias corporales y medidas lineales.",
+  },
+  {
+    id: "pliegues",
+    label: "Pliegues",
+    description: "Pliegues cutaneos registrados en la medicion.",
+  },
+  {
+    id: "diametros",
+    label: "Diametros",
+    description: "Diametros oseos y anchos corporales.",
+  },
+  {
+    id: "salud",
+    label: "Salud",
+    description: "Biometria y signos vitales del registro.",
+  },
+  {
+    id: "otros",
+    label: "Otros",
+    description: "Mediciones adicionales registradas en esta fecha.",
+  },
+];
+
+const normalizeSearchValue = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+const getMeasurementGroupId = (
+  metricType: ClientMetric["metric_type"],
+): MeasurementGroupId => {
+  switch (metricType) {
+    case "weight":
+    case "body_fat":
+    case "fat_free_mass":
+    case "muscle_mass":
+    case "bone_mass":
+    case "body_water":
+    case "metabolic_age":
+    case "visceral_fat":
+      return "composicion";
+    case "upper_body_fat":
+    case "lower_body_fat":
+    case "arms":
+    case "thighs":
+    case "calves":
+      return "segmental";
+    case "waist":
+    case "hips":
+    case "chest":
+    case "cephalic":
+    case "neck":
+    case "mesosternal":
+    case "umbilical":
+    case "foot_length":
+    case "hand_length":
+    case "arm_left":
+    case "arm_right":
+    case "relaxed_arm_midpoint":
+    case "contracted_arm_midpoint":
+    case "forearm":
+    case "wrist":
+    case "thigh_left":
+    case "thigh_right":
+    case "mid_thigh":
+    case "calf":
+    case "calf_left":
+    case "calf_right":
+      return "perimetros";
+    case "subscapular_fold":
+    case "triceps_fold":
+    case "biceps_fold":
+    case "iliac_crest_fold":
+    case "supraspinal_fold":
+    case "abdominal_fold":
+    case "front_thigh_fold":
+    case "medial_calf_fold":
+    case "mid_axillary_fold":
+    case "pectoral_fold":
+      return "pliegues";
+    case "biacromial":
+    case "biiliocrestal":
+    case "thorax_transverse":
+    case "thorax_anteroposterior":
+    case "humerus_biepicondylar":
+    case "wrist_bistyloid":
+    case "femur_biepicondylar":
+    case "bimaleolar":
+    case "foot_transverse":
+    case "hand_transverse":
+      return "diametros";
+    case "blood_pressure":
+    case "glucose":
+    case "heart_rate":
+    case "oxygen_saturation":
+    case "systolic":
+    case "diastolic":
+      return "salud";
+    default:
+      return "otros";
+  }
 };
 
 const calculationSubsections: Array<{
@@ -340,6 +496,13 @@ const formatCalculationMethod = (method: string) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 
+const formatDeltaFromPatient = (value: number | null) => {
+  if (value === null) return "Sin referencia";
+  if (value === 0) return "Coincide con el peso actual";
+
+  return `${value > 0 ? "+" : ""}${formatCalculationValue(value)} kg vs peso actual`;
+};
+
 const getStatusLabel = (status: MeasurementCalculationStatus) => {
   if (status === "computed") return "Calculado";
   if (status === "error") return "Error";
@@ -387,9 +550,13 @@ export function MeasurementDetailsModal({
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [measurementSearchQuery, setMeasurementSearchQuery] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(true);
   const [activeCalculationSubsection, setActiveCalculationSubsection] =
     useState<CalculationSubsectionId>(defaultCalculationSubsection);
+  const deferredMeasurementSearchQuery = useDeferredValue(
+    measurementSearchQuery,
+  );
 
   const measurementId = record?.measurementId;
   const {
@@ -476,7 +643,52 @@ export function MeasurementDetailsModal({
     [calculationRowsBySubsection],
   );
 
+  const measurementCards = useMemo<MeasurementCardItem[]>(
+    () =>
+      (record?.metrics ?? []).map((metric) => {
+        const label = typeLabels[metric.metric_type] || metric.metric_type;
+
+        return {
+          metric,
+          label,
+          groupId: getMeasurementGroupId(metric.metric_type),
+          searchText: normalizeSearchValue(
+            `${label} ${metric.metric_type} ${metric.unit ?? ""}`,
+          ),
+        };
+      }),
+    [record?.metrics],
+  );
+
+  const normalizedMeasurementSearch = useMemo(
+    () => normalizeSearchValue(deferredMeasurementSearchQuery),
+    [deferredMeasurementSearchQuery],
+  );
+
+  const measurementGroups = useMemo(
+    () =>
+      measurementGroupDefinitions
+        .map((group) => ({
+          ...group,
+          metrics: measurementCards.filter(
+            (item) =>
+              item.groupId === group.id &&
+              (!normalizedMeasurementSearch ||
+                item.searchText.includes(normalizedMeasurementSearch)),
+          ),
+        }))
+        .filter((group) => group.metrics.length > 0),
+    [measurementCards, normalizedMeasurementSearch],
+  );
+
+  const visibleMeasurementCount = measurementGroups.reduce(
+    (total, group) => total + group.metrics.length,
+    0,
+  );
+
   useEffect(() => {
+    setIsFullscreen(isOpen);
+
     if (!isOpen) {
       setSelectedMetric(null);
       setActiveTab("measurements");
@@ -484,7 +696,7 @@ export function MeasurementDetailsModal({
       setTimeFilter("all");
       setCustomStartDate("");
       setCustomEndDate("");
-      setIsFullscreen(false);
+      setMeasurementSearchQuery("");
       setActiveCalculationSubsection(defaultCalculationSubsection);
     }
   }, [isOpen]);
@@ -496,7 +708,8 @@ export function MeasurementDetailsModal({
     setTimeFilter("all");
     setCustomStartDate("");
     setCustomEndDate("");
-    setIsFullscreen(false);
+    setMeasurementSearchQuery("");
+    setIsFullscreen(true);
     setActiveCalculationSubsection(defaultCalculationSubsection);
   }, [record?.measurementId, record?.rawDate]);
 
@@ -662,6 +875,8 @@ export function MeasurementDetailsModal({
   const frisanchoDetails = (measurementDetail?.calculations[
     "frisancho_indicators"
   ]?.details ?? null) as FrisanchoCalculationDetails | null;
+  const idealWeightComparisonChart =
+    measurementDetail?.charts.idealWeightComparison ?? null;
 
   const renderCalculationRowMessage = (row: CalculationRow) => {
     if (row.missingFields && row.missingFields.length > 0) {
@@ -759,6 +974,146 @@ export function MeasurementDetailsModal({
     </div>
   );
 
+  const renderIdealWeightComparisonChart = () => {
+    if (
+      !idealWeightComparisonChart ||
+      idealWeightComparisonChart.entries.length === 0
+    ) {
+      return null;
+    }
+
+    const chartMaxValue = Math.max(
+      ...idealWeightComparisonChart.entries.map((entry) => entry.value),
+    );
+
+    return (
+      <div className="mt-5 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
+        <div className="border-b border-emerald-100 bg-emerald-50/60 px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
+            Comparacion visual
+          </p>
+          <h6 className="mt-1 text-lg font-semibold text-gray-950">
+            Peso del paciente vs pesos teoricos
+          </h6>
+          <p className="mt-1 text-sm text-gray-600">
+            La barra verde marca el peso actual y las barras grises muestran
+            cada estimacion teorica guardada.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-[minmax(0,1.7fr)_240px]">
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={idealWeightComparisonChart.entries}
+                layout="vertical"
+                margin={{ top: 8, right: 24, bottom: 8, left: 12 }}
+              >
+                <CartesianGrid
+                  horizontal={false}
+                  stroke="#e5e7eb"
+                  strokeDasharray="4 4"
+                />
+                <XAxis
+                  type="number"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#94a3b8", fontSize: 12 }}
+                  domain={[0, Math.ceil(chartMaxValue * 1.15)]}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  axisLine={false}
+                  tickLine={false}
+                  width={110}
+                  tick={{ fill: "#475569", fontSize: 12, fontWeight: 600 }}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const point = payload[0]
+                      .payload as (typeof idealWeightComparisonChart.entries)[number];
+
+                    return (
+                      <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-lg">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {point.label}
+                        </p>
+                        <p className="mt-2 text-sm text-gray-600">
+                          {formatCalculationValue(point.value)}{" "}
+                          {idealWeightComparisonChart.unit}
+                        </p>
+                        <p className="mt-1 text-xs font-medium text-gray-500">
+                          {point.kind === "patient"
+                            ? "Peso registrado en esta medicion"
+                            : formatDeltaFromPatient(point.deltaFromPatient)}
+                        </p>
+                      </div>
+                    );
+                  }}
+                />
+                <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={22}>
+                  {idealWeightComparisonChart.entries.map((entry) => (
+                    <Cell
+                      key={entry.key}
+                      fill={entry.kind === "patient" ? "#0f766e" : "#cbd5e1"}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1">
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
+                Peso actual
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-gray-950">
+                {formatCalculationValue(
+                  idealWeightComparisonChart.patientWeight,
+                )}
+              </p>
+              <p className="mt-1 text-sm text-gray-500">
+                {idealWeightComparisonChart.unit}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
+                Promedio teorico
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-gray-950">
+                {formatCalculationValue(
+                  idealWeightComparisonChart.theoreticalWeightAverage,
+                )}
+              </p>
+              <p className="mt-1 text-sm text-gray-500">
+                {idealWeightComparisonChart.unit}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
+                Rango teorico
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-gray-950">
+                {idealWeightComparisonChart.theoreticalWeightRange
+                  ? `${formatCalculationValue(idealWeightComparisonChart.theoreticalWeightRange.min)}-${formatCalculationValue(idealWeightComparisonChart.theoreticalWeightRange.max)}`
+                  : "--"}
+              </p>
+              <p className="mt-1 text-sm text-gray-500">
+                {idealWeightComparisonChart.unit}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderActiveCalculationContent = () => {
     if (activeCalculationRows.length === 0) {
       return (
@@ -768,10 +1123,16 @@ export function MeasurementDetailsModal({
       );
     }
 
-    if (
-      activeCalculationSubsection === "peso-teorico" ||
-      activeCalculationSubsection === "porcentaje-de-grasa"
-    ) {
+    if (activeCalculationSubsection === "peso-teorico") {
+      return (
+        <>
+          {renderIdealWeightComparisonChart()}
+          {renderTableRows(activeCalculationRows)}
+        </>
+      );
+    }
+
+    if (activeCalculationSubsection === "porcentaje-de-grasa") {
       return renderTableRows(activeCalculationRows);
     }
 
@@ -992,40 +1353,103 @@ export function MeasurementDetailsModal({
 
   const measurementsOverviewSection = (
     <section className="rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="mb-5 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-        Selecciona una medicion para ver su grafica e historial completo.
+      <div className="mb-5 flex flex-col gap-4 border-b border-gray-100 pb-5">
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          Selecciona una medicion para ver su grafica e historial completo.
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative w-full max-w-xl">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={measurementSearchQuery}
+              onChange={(event) =>
+                setMeasurementSearchQuery(event.target.value)
+              }
+              placeholder="Buscar medicion por nombre"
+              className="w-full rounded-2xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-sm text-gray-900 shadow-sm transition-colors placeholder:text-gray-400 focus:border-nutrition-400 focus:outline-none focus:ring-2 focus:ring-nutrition-300/40"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2 text-xs font-semibold">
+            <span className="rounded-full bg-nutrition-50 px-3 py-1.5 text-nutrition-700">
+              {visibleMeasurementCount} medicion
+              {visibleMeasurementCount === 1 ? "" : "es"} visibles
+            </span>
+            <span className="rounded-full bg-gray-100 px-3 py-1.5 text-gray-600">
+              {measurementGroups.length} grupo
+              {measurementGroups.length === 1 ? "" : "s"}
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {record.metrics.map((metric) => (
-          <button
-            key={metric.id}
-            type="button"
-            onClick={() => {
-              setSelectedMetric(metric);
-              setHoveredDate(null);
-              setTimeFilter("all");
-              setCustomStartDate("");
-              setCustomEndDate("");
-            }}
-            className="flex min-h-[116px] flex-col justify-between rounded-3xl border border-gray-200 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nutrition-300"
-          >
-            <span className="text-sm font-medium text-gray-500">
-              {typeLabels[metric.metric_type] || metric.metric_type}
-            </span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-3xl font-semibold text-gray-950">
-                {formatMetricValue(metric.value)}
-              </span>
-              {metric.unit ? (
-                <span className="text-sm font-medium text-gray-400">
-                  {metric.unit}
+      {visibleMeasurementCount === 0 ? (
+        <div className="rounded-3xl border border-dashed border-gray-200 bg-gray-50 px-5 py-10 text-center">
+          <p className="text-sm font-semibold text-gray-700">
+            No se encontraron mediciones con ese criterio.
+          </p>
+          <p className="mt-2 text-sm text-gray-500">
+            Prueba con otra palabra, sin importar mayusculas o acentos.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {measurementGroups.map((group) => (
+            <div
+              key={group.id}
+              className="rounded-[28px] border border-gray-200 bg-gray-50/70 p-4 sm:p-5"
+            >
+              <div className="mb-4 flex flex-col gap-2 border-b border-gray-200/80 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-950">
+                    {group.label}
+                  </h4>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {group.description}
+                  </p>
+                </div>
+                <span className="inline-flex w-fit rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 ring-1 ring-gray-200">
+                  {group.metrics.length} medicion
+                  {group.metrics.length === 1 ? "" : "es"}
                 </span>
-              ) : null}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {group.metrics.map((item) => (
+                  <button
+                    key={item.metric.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMetric(item.metric);
+                      setHoveredDate(null);
+                      setTimeFilter("all");
+                      setCustomStartDate("");
+                      setCustomEndDate("");
+                    }}
+                    className="flex min-h-[116px] flex-col justify-between rounded-3xl border border-gray-200 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nutrition-300"
+                  >
+                    <span className="text-sm font-medium text-gray-500">
+                      {item.label}
+                    </span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-3xl font-semibold text-gray-950">
+                        {formatMetricValue(item.metric.value)}
+                      </span>
+                      {item.metric.unit ? (
+                        <span className="text-sm font-medium text-gray-400">
+                          {item.metric.unit}
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
-          </button>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 
@@ -1442,7 +1866,7 @@ export function MeasurementDetailsModal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/45 backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
@@ -1457,10 +1881,10 @@ export function MeasurementDetailsModal({
               leaveTo="opacity-0 scale-95 translate-y-4"
             >
               <Dialog.Panel
-                className={`flex transform flex-col overflow-hidden bg-white shadow-2xl transition-all ${
+                className={`flex transform flex-col overflow-hidden border border-gray-100 bg-white shadow-2xl transition-all ${
                   isFullscreen
-                    ? "h-[96vh] w-[96vw] rounded-[28px]"
-                    : "h-[min(88vh,860px)] w-[min(92vw,1240px)] rounded-[32px]"
+                    ? "h-[96vh] w-[96vw] rounded-[2.5rem]"
+                    : "h-[min(88vh,860px)] w-[min(92vw,1240px)] rounded-[2.5rem]"
                 }`}
               >
                 <div className="flex shrink-0 items-start justify-between border-b border-gray-100 bg-white px-5 py-4 sm:px-6">
@@ -1489,13 +1913,13 @@ export function MeasurementDetailsModal({
                     <div className="min-w-0">
                       <Dialog.Title
                         as="h3"
-                        className="truncate text-xl font-semibold text-gray-950"
+                        className="truncate text-2xl font-black tracking-tight text-gray-950"
                       >
                         {selectedMetric
                           ? selectedMetricLabel
                           : "Detalle de mediciones"}
                       </Dialog.Title>
-                      <p className="mt-1 text-sm text-gray-500">
+                      <p className="mt-1 text-sm font-medium text-gray-500">
                         {selectedMetric
                           ? `Historial registrado el ${selectedDate}`
                           : `Registradas el ${selectedDate}`}
@@ -1507,7 +1931,7 @@ export function MeasurementDetailsModal({
                     <button
                       type="button"
                       onClick={() => setIsFullscreen((current) => !current)}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nutrition-300"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-gray-400 transition-all hover:bg-gray-50 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nutrition-300"
                       aria-label={
                         isFullscreen
                           ? "Restaurar tamano del modal"
@@ -1523,7 +1947,7 @@ export function MeasurementDetailsModal({
                     <button
                       type="button"
                       onClick={onClose}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nutrition-300"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-2xl text-gray-400 transition-all hover:bg-gray-50 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nutrition-300"
                       aria-label="Cerrar detalle"
                     >
                       <X className="h-5 w-5" />

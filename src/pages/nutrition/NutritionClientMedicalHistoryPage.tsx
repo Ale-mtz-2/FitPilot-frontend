@@ -1,6 +1,11 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useClientHistory } from "@/features/client-history/queries";
+import {
+  useClientHistory,
+  useDeleteClientHealthMetric,
+  useDeleteMeasurement,
+} from "@/features/client-history/queries";
 import { ClientMetricHistory } from "@/features/client-history/types";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Ruler,
   Scale,
@@ -20,6 +25,9 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
+  Loader2,
+  PencilLine,
+  Trash2,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { MetricHistoryModal } from "./components/MetricHistoryModal";
@@ -29,9 +37,11 @@ import {
   type MeasurementRecord,
   type MeasurementRecordMetric,
 } from "./components/MeasurementDetailsModal";
+import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 import { ClientMetric, MetricType } from "@/services/client-metrics";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { toast } from "react-hot-toast";
 
 interface Client {
   id: string;
@@ -87,10 +97,27 @@ interface Client {
   [key: string]: any;
 }
 
+type CompositionRecord = MeasurementRecord & {
+  peso?: MeasurementRecordMetric;
+  grasa?: MeasurementRecordMetric;
+  musculo?: MeasurementRecordMetric;
+  sourceMeasurement: ClientMetricHistory;
+};
+
+type HealthRecord = MeasurementRecord & {
+  presion?: MeasurementRecordMetric;
+  glucosa?: MeasurementRecordMetric;
+  frecuencia?: MeasurementRecordMetric;
+  oxigeno?: MeasurementRecordMetric;
+};
+
 const HISTORY_METRICS_FETCH_LIMIT = 100;
 
 const formatOptionalMetricValue = (value?: number | null) =>
   value === undefined || value === null || Number.isNaN(value) ? "-" : value;
+
+const getMeasurementRecordDateLabel = (rawDate: string) =>
+  format(new Date(rawDate), "dd MMM yyyy, HH:mm", { locale: es });
 
 const getPercentageBarWidth = (value?: number | null) => {
   if (
@@ -102,6 +129,62 @@ const getPercentageBarWidth = (value?: number | null) => {
     return "0%";
 
   return `${Math.min(value, 100)}%`;
+};
+
+const getBodyMassIndex = (
+  weightKg?: number | null,
+  heightCm?: number | null,
+) => {
+  if (
+    weightKg === undefined ||
+    weightKg === null ||
+    heightCm === undefined ||
+    heightCm === null ||
+    Number.isNaN(weightKg) ||
+    Number.isNaN(heightCm) ||
+    weightKg <= 0 ||
+    heightCm <= 0
+  ) {
+    return null;
+  }
+
+  const heightInMeters = heightCm / 100;
+  return Number((weightKg / (heightInMeters * heightInMeters)).toFixed(1));
+};
+
+const getBmiDescriptor = (bmi?: number | null) => {
+  if (bmi === undefined || bmi === null || Number.isNaN(bmi) || bmi <= 0) {
+    return {
+      label: "Sin datos",
+      className: "bg-gray-100 text-gray-500",
+    };
+  }
+
+  if (bmi < 18.5) {
+    return {
+      label: "Bajo peso",
+      className: "bg-amber-100 text-amber-700",
+    };
+  }
+
+  if (bmi < 25) {
+    return {
+      label: "Normal",
+      className: "bg-emerald-100 text-emerald-700",
+    };
+  }
+
+  if (bmi < 30) {
+    return {
+      label: "Sobrepeso",
+      className: "bg-orange-100 text-orange-700",
+    };
+  }
+
+  return {
+    label: "Obesidad",
+    className: "bg-rose-100 text-rose-700",
+  };
 };
 
 export function NutritionClientMedicalHistoryPage() {
@@ -132,9 +215,16 @@ export function NutritionClientMedicalHistoryPage() {
     useState(false);
   const [selectedRecord, setSelectedRecord] =
     useState<MeasurementRecord | null>(null);
+  const [measurementToEdit, setMeasurementToEdit] =
+    useState<ClientMetricHistory | null>(null);
+  const [recordToDelete, setRecordToDelete] =
+    useState<MeasurementRecord | null>(null);
+  const [removingRecordId, setRemovingRecordId] = useState<string | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const deleteMeasurementMutation = useDeleteMeasurement();
+  const deleteHealthMetricMutation = useDeleteClientHealthMetric();
 
   const getMetricsByType = (
     type: string,
@@ -1060,11 +1150,15 @@ export function NutritionClientMedicalHistoryPage() {
         })(),
         client_metrics: normalizeMetrics(historyData.client_metrics || []),
       };
+      mappedClient.bmi = getBodyMassIndex(
+        mappedClient.metrics?.currentWeight,
+        mappedClient.heightCm,
+      );
       setClient(mappedClient);
     }
   }, [historyData]);
 
-  const compositionRecords = useMemo(() => {
+  const compositionRecords = useMemo<CompositionRecord[]>(() => {
     return (historyData?.client_metrics || [])
       .map((measurement) => {
         const metrics = normalizeMetrics([measurement]).map(
@@ -1078,9 +1172,12 @@ export function NutritionClientMedicalHistoryPage() {
         );
 
         return {
+          recordId: String(measurement.id),
+          recordType: "measurement" as const,
           measurementId: String(measurement.id),
-          rawDate: measurement.date,
+          rawDate: measurement.logged_at || measurement.date,
           metrics,
+          sourceMeasurement: measurement,
           peso: metrics.find((metric) => metric.metric_type === "weight"),
           grasa: metrics.find((metric) => metric.metric_type === "body_fat"),
           musculo: metrics.find(
@@ -1093,72 +1190,69 @@ export function NutritionClientMedicalHistoryPage() {
       );
   }, [historyData]);
 
-  const groupedHealthMetrics = useMemo(() => {
-    const recordGroups = new Map<string, any>();
-
-    (historyData?.client_health_metrics || []).forEach((metric) => {
-      const dateStr = format(new Date(metric.recorded_at), "yyyy-MM-dd");
-      if (!recordGroups.has(dateStr)) {
-        recordGroups.set(dateStr, {
-          dateStr,
+  const healthRecords = useMemo<HealthRecord[]>(() => {
+    return (historyData?.client_health_metrics || [])
+      .map((metric) => {
+        const metrics: MeasurementRecordMetric[] = [];
+        const record: HealthRecord = {
+          recordId: String(metric.id),
+          recordType: "health_metric",
+          healthMetricId: String(metric.id),
           rawDate: metric.recorded_at,
-          metrics: [],
-        });
-      }
-
-      const group = recordGroups.get(dateStr);
-
-      if (metric.systolic_mmhg && metric.diastolic_mmhg) {
-        const bloodPressureMetric = {
-          id: `bp_${metric.id}`,
-          metric_type: "blood_pressure",
-          value: `${metric.systolic_mmhg}/${metric.diastolic_mmhg}`,
-          unit: "mmHg",
-          date: metric.recorded_at,
+          metrics,
         };
-        group.metrics.push(bloodPressureMetric);
-        group.presion = bloodPressureMetric;
-      }
 
-      if (metric.glucose_mg_dl) {
-        const glucoseMetric = {
-          id: `gl_${metric.id}`,
-          metric_type: "glucose",
-          value: metric.glucose_mg_dl,
-          unit: "mg/dL",
-          date: metric.recorded_at,
-        };
-        group.metrics.push(glucoseMetric);
-        group.glucosa = glucoseMetric;
-      }
+        if (metric.systolic_mmhg && metric.diastolic_mmhg) {
+          const bloodPressureMetric: MeasurementRecordMetric = {
+            id: `bp_${metric.id}`,
+            metric_type: "blood_pressure",
+            value: `${metric.systolic_mmhg}/${metric.diastolic_mmhg}`,
+            unit: "mmHg",
+            date: metric.recorded_at,
+          };
+          metrics.push(bloodPressureMetric);
+          record.presion = bloodPressureMetric;
+        }
 
-      if (metric.heart_rate_bpm !== null) {
-        const heartRateMetric = {
-          id: `hr_${metric.id}`,
-          metric_type: "heart_rate",
-          value: metric.heart_rate_bpm,
-          unit: "bpm",
-          date: metric.recorded_at,
-        };
-        group.metrics.push(heartRateMetric);
-        group.frecuencia = heartRateMetric;
-      }
+        if (metric.glucose_mg_dl) {
+          const glucoseMetric: MeasurementRecordMetric = {
+            id: `gl_${metric.id}`,
+            metric_type: "glucose",
+            value: metric.glucose_mg_dl,
+            unit: "mg/dL",
+            date: metric.recorded_at,
+          };
+          metrics.push(glucoseMetric);
+          record.glucosa = glucoseMetric;
+        }
 
-      if (metric.oxygen_saturation_pct !== null) {
-        const oxygenSaturationMetric = {
-          id: `ox_${metric.id}`,
-          metric_type: "oxygen_saturation",
-          value: Number(metric.oxygen_saturation_pct),
-          unit: "%",
-          date: metric.recorded_at,
-        };
-        group.metrics.push(oxygenSaturationMetric);
-        group.oxigeno = oxygenSaturationMetric;
-      }
-    });
+        if (metric.heart_rate_bpm !== null) {
+          const heartRateMetric: MeasurementRecordMetric = {
+            id: `hr_${metric.id}`,
+            metric_type: "heart_rate",
+            value: metric.heart_rate_bpm,
+            unit: "bpm",
+            date: metric.recorded_at,
+          };
+          metrics.push(heartRateMetric);
+          record.frecuencia = heartRateMetric;
+        }
 
-    return Array.from(recordGroups.values())
-      .filter((group) => group.metrics.length > 0)
+        if (metric.oxygen_saturation_pct !== null) {
+          const oxygenSaturationMetric: MeasurementRecordMetric = {
+            id: `ox_${metric.id}`,
+            metric_type: "oxygen_saturation",
+            value: Number(metric.oxygen_saturation_pct),
+            unit: "%",
+            date: metric.recorded_at,
+          };
+          metrics.push(oxygenSaturationMetric);
+          record.oxigeno = oxygenSaturationMetric;
+        }
+
+        return record;
+      })
+      .filter((record) => record.metrics.length > 0)
       .sort(
         (a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime(),
       );
@@ -1168,17 +1262,91 @@ export function NutritionClientMedicalHistoryPage() {
     setCurrentPage(1);
   }, [activeMeasurementTab]);
 
-  const activeGroupedMetrics =
-    activeMeasurementTab === "health"
-      ? groupedHealthMetrics
-      : compositionRecords;
+  const activeGroupedMetrics = useMemo(
+    () =>
+      (activeMeasurementTab === "health"
+        ? healthRecords
+        : compositionRecords
+      ).filter((record) => record.recordId !== removingRecordId),
+    [activeMeasurementTab, compositionRecords, healthRecords, removingRecordId],
+  );
 
-  const totalPages = Math.ceil(activeGroupedMetrics.length / itemsPerPage);
+  useEffect(() => {
+    if (
+      removingRecordId &&
+      !compositionRecords.some(
+        (record) => record.recordId === removingRecordId,
+      ) &&
+      !healthRecords.some((record) => record.recordId === removingRecordId)
+    ) {
+      setRemovingRecordId(null);
+    }
+  }, [compositionRecords, healthRecords, removingRecordId]);
+
+  const totalPages =
+    activeGroupedMetrics.length === 0
+      ? 1
+      : Math.ceil(activeGroupedMetrics.length / itemsPerPage);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedMetrics = activeGroupedMetrics.slice(
     startIndex,
     startIndex + itemsPerPage,
   );
+  const paginatedCompositionRecords = paginatedMetrics as CompositionRecord[];
+  const paginatedHealthRecords = paginatedMetrics as HealthRecord[];
+  const isDeletingRecord =
+    deleteMeasurementMutation.isPending || deleteHealthMetricMutation.isPending;
+
+  const handleDeleteRecord = async () => {
+    if (!recordToDelete) return;
+
+    const targetRecord = recordToDelete;
+    setRemovingRecordId(targetRecord.recordId);
+    setRecordToDelete(null);
+
+    await new Promise((resolve) => window.setTimeout(resolve, 380));
+
+    try {
+      if (targetRecord.recordType === "measurement") {
+        await deleteMeasurementMutation.mutateAsync(targetRecord.recordId);
+      } else {
+        await deleteHealthMetricMutation.mutateAsync(targetRecord.recordId);
+      }
+
+      if (
+        selectedRecord?.recordId === targetRecord.recordId &&
+        selectedRecord.recordType === targetRecord.recordType
+      ) {
+        setSelectedRecord(null);
+      }
+
+      toast.success("Registro eliminado");
+    } catch (error: any) {
+      setRemovingRecordId(null);
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "No se pudo eliminar el registro.",
+      );
+    }
+  };
+
+  const openDeleteDialog = (record: MeasurementRecord) => {
+    setRecordToDelete(record);
+  };
+
+  const closeDeleteDialog = () => {
+    if (!isDeletingRecord) {
+      setRecordToDelete(null);
+    }
+  };
 
   if (historyLoading) {
     return (
@@ -1208,6 +1376,10 @@ export function NutritionClientMedicalHistoryPage() {
       : client.visceralFatLevel < 15
         ? "bg-yellow-100 text-yellow-700"
         : "bg-red-100 text-red-700";
+  const currentWeight = client.metrics?.currentWeight ?? 0;
+  const currentHeight = client.heightCm ?? 0;
+  const currentBmi = getBodyMassIndex(currentWeight, currentHeight);
+  const bmiDescriptor = getBmiDescriptor(currentBmi);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-6 bg-gray-50 min-h-screen">
@@ -1331,6 +1503,138 @@ export function NutritionClientMedicalHistoryPage() {
         </div>
       </div>
 
+      <section className="relative overflow-hidden rounded-[2rem] border border-nutrition-100 bg-[linear-gradient(135deg,rgba(240,253,250,0.92),rgba(255,255,255,0.98))] p-6 shadow-sm">
+        <div className="absolute inset-y-0 right-0 hidden w-80 bg-[radial-gradient(circle_at_center,rgba(45,212,191,0.16),transparent_68%)] lg:block" />
+        <div className="relative">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedMetric({
+                  type: "weight",
+                  title: "Peso Corporal",
+                  unit: client.metrics?.weightUnit,
+                })
+              }
+              className="group rounded-[1.75rem] border border-white/80 bg-white/95 p-5 text-left shadow-sm shadow-nutrition-100/40 ring-1 ring-gray-100 transition-all hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-100/60"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">
+                    Peso Actual
+                  </p>
+                  <div className="mt-3 flex items-end gap-2">
+                    <span className="text-3xl font-black tracking-tight text-gray-950">
+                      {currentWeight > 0 ? currentWeight : "-"}
+                    </span>
+                    <span className="pb-1 text-sm font-medium text-gray-400">
+                      {client.metrics?.weightUnit}
+                    </span>
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-emerald-50 p-2.5 text-emerald-600 transition-colors group-hover:bg-emerald-100">
+                  <Scale className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="mt-4 inline-flex items-center gap-1 rounded-xl bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
+                <TrendingDown
+                  className={`h-3.5 w-3.5 ${(client.metrics?.weightChange || 0) > 0 ? "rotate-180" : ""}`}
+                />
+                <span>
+                  {Math.abs(client.metrics?.weightChange || 0).toFixed(1)} kg{" "}
+                  {client.metrics?.weightChangeLabel}
+                </span>
+              </div>
+            </button>
+
+            <div className="rounded-[1.75rem] border border-white/80 bg-white/95 p-5 shadow-sm shadow-nutrition-100/40 ring-1 ring-gray-100">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">
+                    Estatura
+                  </p>
+                  <div className="mt-3 flex items-end gap-2">
+                    <span className="text-3xl font-black tracking-tight text-gray-950">
+                      {currentHeight > 0 ? currentHeight : "-"}
+                    </span>
+                    <span className="pb-1 text-sm font-medium text-gray-400">
+                      cm
+                    </span>
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-sky-50 p-2.5 text-sky-600">
+                  <Ruler className="h-5 w-5" />
+                </div>
+              </div>
+              <p className="mt-4 text-xs font-medium text-gray-500">
+                Referencia para indicadores antropométricos.
+              </p>
+            </div>
+
+            <div className="rounded-[1.75rem] border border-white/80 bg-white/95 p-5 shadow-sm shadow-nutrition-100/40 ring-1 ring-gray-100">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">IMC</p>
+                  <div className="mt-3 flex items-end gap-2">
+                    <span className="text-3xl font-black tracking-tight text-gray-950">
+                      {currentBmi ?? "-"}
+                    </span>
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-violet-50 p-2.5 text-violet-600">
+                  <Activity className="h-5 w-5" />
+                </div>
+              </div>
+              <span
+                className={`mt-4 inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${bmiDescriptor.className}`}
+              >
+                {bmiDescriptor.label}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedMetric({
+                  type: "visceral_fat",
+                  title: "Grasa Visceral",
+                  unit: "Nivel",
+                })
+              }
+              className="group rounded-[1.75rem] border border-white/80 bg-white/95 p-5 text-left shadow-sm shadow-nutrition-100/40 ring-1 ring-gray-100 transition-all hover:-translate-y-1 hover:border-cyan-200 hover:shadow-lg hover:shadow-cyan-100/60"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">
+                    Grasa Visceral
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-3xl font-black tracking-tight text-gray-950">
+                      {client.visceralFatLevel > 0
+                        ? client.visceralFatLevel
+                        : "-"}
+                    </span>
+                    {client.visceralFatLevel > 0 ? (
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${visceralColor}`}
+                      >
+                        {client.visceralFatLevel < 10 ? "Saludable" : "Riesgo"}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-cyan-50 p-2.5 text-cyan-600 transition-colors group-hover:bg-cyan-100">
+                  <Droplet className="h-5 w-5" />
+                </div>
+              </div>
+              <p className="mt-4 text-xs font-medium text-gray-500">
+                Nivel asociado al riesgo cardiometabólico.
+              </p>
+            </button>
+          </div>
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Section 1: Anthropometry & Composition (Visuals) - Spans 3 cols */}
         <div className="lg:col-span-3 space-y-6">
@@ -1391,87 +1695,133 @@ export function NutritionClientMedicalHistoryPage() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b border-gray-100 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                        <th className="pb-3 font-medium">Fecha</th>
-                        <th className="pb-3 font-medium text-right">Peso</th>
-                        <th className="pb-3 font-medium text-right">
+                        <th className="px-4 pb-3 font-medium">Fecha</th>
+                        <th className="px-4 pb-3 font-medium text-right">
+                          Peso
+                        </th>
+                        <th className="px-4 pb-3 font-medium text-right">
                           Grasa Corporal
                         </th>
-                        <th className="pb-3 font-medium text-right">
+                        <th className="px-4 pb-3 font-medium text-right">
                           Masa Muscular
+                        </th>
+                        <th className="px-4 pb-3 font-medium text-right">
+                          Acción
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 text-sm">
                       {compositionRecords.length > 0 ? (
-                        paginatedMetrics.map((record, idx) => (
-                          <tr
-                            key={`record-${idx}`}
-                            className="hover:bg-gray-50 transition-colors cursor-pointer group"
-                            onClick={() => setSelectedRecord(record)}
-                          >
-                            <td className="py-4 text-gray-500 whitespace-nowrap font-medium group-hover:text-nutrition-600 transition-colors">
-                              {format(new Date(record.rawDate), "dd MMM yyyy", {
-                                locale: es,
-                              })}
-                            </td>
-                            <td className="py-4 text-right">
-                              {record.peso ? (
-                                <span>
-                                  <span className="font-bold text-gray-900">
-                                    {typeof record.peso.value === "number" &&
-                                    record.peso.value % 1 !== 0
-                                      ? record.peso.value.toFixed(1)
-                                      : record.peso.value}
-                                  </span>{" "}
-                                  <span className="text-xs text-gray-400">
-                                    kg
+                        <AnimatePresence initial={false} mode="popLayout">
+                          {paginatedCompositionRecords.map((record) => (
+                            <motion.tr
+                              key={record.recordId}
+                              layout
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: 72, scale: 0.985 }}
+                              transition={{
+                                duration: 0.38,
+                                ease: [0.22, 1, 0.36, 1],
+                              }}
+                              className="cursor-pointer group transition-colors hover:bg-gray-50"
+                              onClick={() => setSelectedRecord(record)}
+                            >
+                              <td className="px-4 py-4 text-gray-500 whitespace-nowrap font-medium group-hover:text-nutrition-600 transition-colors">
+                                {getMeasurementRecordDateLabel(record.rawDate)}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                {record.peso ? (
+                                  <span>
+                                    <span className="font-bold text-gray-900">
+                                      {typeof record.peso.value === "number" &&
+                                      record.peso.value % 1 !== 0
+                                        ? record.peso.value.toFixed(1)
+                                        : record.peso.value}
+                                    </span>{" "}
+                                    <span className="text-xs text-gray-400">
+                                      kg
+                                    </span>
                                   </span>
-                                </span>
-                              ) : (
-                                <span className="text-gray-300">-</span>
-                              )}
-                            </td>
-                            <td className="py-4 text-right">
-                              {record.grasa ? (
-                                <span>
-                                  <span className="font-bold text-gray-900">
-                                    {typeof record.grasa.value === "number" &&
-                                    record.grasa.value % 1 !== 0
-                                      ? record.grasa.value.toFixed(1)
-                                      : record.grasa.value}
-                                  </span>{" "}
-                                  <span className="text-xs text-gray-400">
-                                    %
+                                ) : (
+                                  <span className="text-gray-300">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                {record.grasa ? (
+                                  <span>
+                                    <span className="font-bold text-gray-900">
+                                      {typeof record.grasa.value === "number" &&
+                                      record.grasa.value % 1 !== 0
+                                        ? record.grasa.value.toFixed(1)
+                                        : record.grasa.value}
+                                    </span>{" "}
+                                    <span className="text-xs text-gray-400">
+                                      %
+                                    </span>
                                   </span>
-                                </span>
-                              ) : (
-                                <span className="text-gray-300">-</span>
-                              )}
-                            </td>
-                            <td className="py-4 text-right">
-                              {record.musculo ? (
-                                <span>
-                                  <span className="font-bold text-gray-900">
-                                    {typeof record.musculo.value === "number" &&
-                                    record.musculo.value % 1 !== 0
-                                      ? record.musculo.value.toFixed(1)
-                                      : record.musculo.value}
-                                  </span>{" "}
-                                  <span className="text-xs text-gray-400">
-                                    kg
+                                ) : (
+                                  <span className="text-gray-300">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                {record.musculo ? (
+                                  <span>
+                                    <span className="font-bold text-gray-900">
+                                      {typeof record.musculo.value ===
+                                        "number" &&
+                                      record.musculo.value % 1 !== 0
+                                        ? record.musculo.value.toFixed(1)
+                                        : record.musculo.value}
+                                    </span>{" "}
+                                    <span className="text-xs text-gray-400">
+                                      kg
+                                    </span>
                                   </span>
-                                </span>
-                              ) : (
-                                <span className="text-gray-300">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))
+                                ) : (
+                                  <span className="text-gray-300">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    aria-label={`Editar registro del ${getMeasurementRecordDateLabel(record.rawDate)}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setMeasurementToEdit(
+                                        record.sourceMeasurement,
+                                      );
+                                    }}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-nutrition-200 bg-nutrition-50 text-nutrition-600 shadow-sm transition-all duration-200 hover:scale-105 hover:border-nutrition-300 hover:bg-nutrition-100 hover:text-nutrition-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nutrition-200"
+                                  >
+                                    <PencilLine className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={`Eliminar registro del ${getMeasurementRecordDateLabel(record.rawDate)}`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openDeleteDialog(record);
+                                    }}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-500 shadow-sm transition-all duration-200 hover:scale-105 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                                  >
+                                    {removingRecordId === record.recordId ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                </div>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </AnimatePresence>
                       ) : (
                         <tr>
                           <td
-                            colSpan={4}
-                            className="py-8 text-center text-gray-400"
+                            colSpan={5}
+                            className="px-4 py-8 text-center text-gray-400"
                           >
                             No hay mediciones corporales registradas.
                           </td>
@@ -1489,95 +1839,125 @@ export function NutritionClientMedicalHistoryPage() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b border-gray-100 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                        <th className="pb-3 font-medium">Fecha</th>
-                        <th className="pb-3 font-medium text-right">
+                        <th className="px-4 pb-3 font-medium">Fecha</th>
+                        <th className="px-4 pb-3 font-medium text-right">
                           Presión Arterial
                         </th>
-                        <th className="pb-3 font-medium text-right">Glucosa</th>
-                        <th className="pb-3 font-medium text-right">
+                        <th className="px-4 pb-3 font-medium text-right">
+                          Glucosa
+                        </th>
+                        <th className="px-4 pb-3 font-medium text-right">
                           Frecuencia Cardiaca
                         </th>
-                        <th className="pb-3 font-medium text-right">
+                        <th className="px-4 pb-3 font-medium text-right">
                           Saturación O2
+                        </th>
+                        <th className="px-4 pb-3 font-medium text-right">
+                          Acción
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 text-sm">
-                      {groupedHealthMetrics.length > 0 ? (
-                        paginatedMetrics.map((record, idx) => (
-                          <tr
-                            key={`health-record-${idx}`}
-                            className="hover:bg-gray-50 transition-colors cursor-pointer group"
-                            onClick={() => setSelectedRecord(record)}
-                          >
-                            <td className="py-4 text-gray-500 whitespace-nowrap font-medium group-hover:text-nutrition-600 transition-colors">
-                              {format(new Date(record.rawDate), "dd MMM yyyy", {
-                                locale: es,
-                              })}
-                            </td>
-                            <td className="py-4 text-right">
-                              {record.presion ? (
-                                <span>
-                                  <span className="font-bold text-gray-900">
-                                    {record.presion.value}
-                                  </span>{" "}
-                                  <span className="text-xs text-gray-400">
-                                    mmHg
+                      {healthRecords.length > 0 ? (
+                        <AnimatePresence initial={false} mode="popLayout">
+                          {paginatedHealthRecords.map((record) => (
+                            <motion.tr
+                              key={record.recordId}
+                              layout
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: 72, scale: 0.985 }}
+                              transition={{
+                                duration: 0.38,
+                                ease: [0.22, 1, 0.36, 1],
+                              }}
+                              className="cursor-pointer group transition-colors hover:bg-gray-50"
+                              onClick={() => setSelectedRecord(record)}
+                            >
+                              <td className="px-4 py-4 text-gray-500 whitespace-nowrap font-medium group-hover:text-nutrition-600 transition-colors">
+                                {getMeasurementRecordDateLabel(record.rawDate)}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                {record.presion ? (
+                                  <span>
+                                    <span className="font-bold text-gray-900">
+                                      {record.presion.value}
+                                    </span>{" "}
+                                    <span className="text-xs text-gray-400">
+                                      mmHg
+                                    </span>
                                   </span>
-                                </span>
-                              ) : (
-                                <span className="text-gray-300">-</span>
-                              )}
-                            </td>
-                            <td className="py-4 text-right">
-                              {record.glucosa ? (
-                                <span>
-                                  <span className="font-bold text-gray-900">
-                                    {record.glucosa.value}
-                                  </span>{" "}
-                                  <span className="text-xs text-gray-400">
-                                    mg/dL
+                                ) : (
+                                  <span className="text-gray-300">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                {record.glucosa ? (
+                                  <span>
+                                    <span className="font-bold text-gray-900">
+                                      {record.glucosa.value}
+                                    </span>{" "}
+                                    <span className="text-xs text-gray-400">
+                                      mg/dL
+                                    </span>
                                   </span>
-                                </span>
-                              ) : (
-                                <span className="text-gray-300">-</span>
-                              )}
-                            </td>
-                            <td className="py-4 text-right">
-                              {record.frecuencia ? (
-                                <span>
-                                  <span className="font-bold text-gray-900">
-                                    {record.frecuencia.value}
-                                  </span>{" "}
-                                  <span className="text-xs text-gray-400">
-                                    bpm
+                                ) : (
+                                  <span className="text-gray-300">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                {record.frecuencia ? (
+                                  <span>
+                                    <span className="font-bold text-gray-900">
+                                      {record.frecuencia.value}
+                                    </span>{" "}
+                                    <span className="text-xs text-gray-400">
+                                      bpm
+                                    </span>
                                   </span>
-                                </span>
-                              ) : (
-                                <span className="text-gray-300">-</span>
-                              )}
-                            </td>
-                            <td className="py-4 text-right">
-                              {record.oxigeno ? (
-                                <span>
-                                  <span className="font-bold text-gray-900">
-                                    {record.oxigeno.value}
-                                  </span>{" "}
-                                  <span className="text-xs text-gray-400">
-                                    %
+                                ) : (
+                                  <span className="text-gray-300">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                {record.oxigeno ? (
+                                  <span>
+                                    <span className="font-bold text-gray-900">
+                                      {record.oxigeno.value}
+                                    </span>{" "}
+                                    <span className="text-xs text-gray-400">
+                                      %
+                                    </span>
                                   </span>
-                                </span>
-                              ) : (
-                                <span className="text-gray-300">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))
+                                ) : (
+                                  <span className="text-gray-300">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                <button
+                                  type="button"
+                                  aria-label={`Eliminar registro del ${getMeasurementRecordDateLabel(record.rawDate)}`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openDeleteDialog(record);
+                                  }}
+                                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-500 shadow-sm transition-all duration-200 hover:scale-105 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                                >
+                                  {removingRecordId === record.recordId ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </button>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </AnimatePresence>
                       ) : (
                         <tr>
                           <td
-                            colSpan={5}
-                            className="py-8 text-center text-gray-400"
+                            colSpan={6}
+                            className="px-4 py-8 text-center text-gray-400"
                           >
                             No hay métricas de salud registradas.
                           </td>
@@ -1600,7 +1980,7 @@ export function NutritionClientMedicalHistoryPage() {
                       setItemsPerPage(Number(e.target.value));
                       setCurrentPage(1);
                     }}
-                    className="border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-nutrition-500 bg-white"
+                    className="min-w-[4.5rem] appearance-none rounded-lg border border-gray-200 bg-white px-3 py-1 text-center focus:outline-none focus:ring-1 focus:ring-nutrition-500"
                   >
                     <option value={5}>5</option>
                     <option value={10}>10</option>
@@ -1692,93 +2072,6 @@ export function NutritionClientMedicalHistoryPage() {
                 <div className="flex items-center gap-2 text-blue-600 font-bold text-lg mb-6">
                   <Scale className="w-6 h-6" />
                   <h3>Antropometría y Composición</h3>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  {/* Weight Card */}
-                  <div
-                    onClick={() =>
-                      setSelectedMetric({
-                        type: "weight",
-                        title: "Peso Corporal",
-                        unit: client.metrics?.weightUnit,
-                      })
-                    }
-                    className="p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer hover:border-green-200 hover:bg-green-50/30 transition-all"
-                  >
-                    <p className="text-xs text-gray-500 font-medium mb-1">
-                      Peso Actual
-                    </p>
-                    <div className="flex items-end gap-2">
-                      <span className="text-2xl font-bold text-gray-900">
-                        {client.metrics?.currentWeight}
-                      </span>
-                      <span className="text-sm text-gray-500 mb-1">
-                        {client.metrics?.weightUnit}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 mt-2 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-lg w-fit">
-                      <TrendingDown
-                        className={`w-3 h-3 ${(client.metrics?.weightChange || 0) > 0 ? "rotate-180" : ""}`}
-                      />
-                      <span className="text-slate-700">
-                        {Math.abs(client.metrics?.weightChange || 0).toFixed(1)}
-                        kg {client.metrics?.weightChangeLabel}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Height Card */}
-                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium mb-1">
-                      Estatura
-                    </p>
-                    <div className="flex items-end gap-2">
-                      <span className="text-2xl font-bold text-gray-900">
-                        {client.heightCm}
-                      </span>
-                      <span className="text-sm text-gray-500 mb-1">cm</span>
-                    </div>
-                  </div>
-
-                  {/* BMI Card */}
-                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium mb-1">
-                      IMC
-                    </p>
-                    <div className="flex items-end gap-2">
-                      <span className="text-2xl font-bold text-gray-900">
-                        {client.bmi}
-                      </span>
-                    </div>
-                    <span className="text-xs text-gray-400">Normal</span>
-                  </div>
-
-                  {/* Visceral Fat Card */}
-                  <div
-                    onClick={() =>
-                      setSelectedMetric({
-                        type: "visceral_fat",
-                        title: "Grasa Visceral",
-                        unit: "Nivel",
-                      })
-                    }
-                    className="p-4 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer hover:border-blue-200 hover:bg-blue-50/30 transition-all"
-                  >
-                    <p className="text-xs text-gray-500 font-medium mb-1">
-                      Grasa Visceral
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl font-bold text-gray-900">
-                        {client.visceralFatLevel}
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${visceralColor}`}
-                      >
-                        {client.visceralFatLevel < 10 ? "Saludable" : "Riesgo"}
-                      </span>
-                    </div>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2649,12 +2942,41 @@ export function NutritionClientMedicalHistoryPage() {
         clientDateOfBirth={historyData?.date_of_birth ?? null}
       />
 
+      <AddMeasurementModal
+        isOpen={!!measurementToEdit}
+        onClose={() => setMeasurementToEdit(null)}
+        clientId={clientId || ""}
+        mode="composition"
+        clientGenre={historyData?.genre ?? null}
+        clientDateOfBirth={historyData?.date_of_birth ?? null}
+        variant="edit"
+        initialMeasurement={measurementToEdit}
+        measurementId={measurementToEdit?.id}
+        onSuccess={() => setMeasurementToEdit(null)}
+      />
+
       <MeasurementDetailsModal
         isOpen={!!selectedRecord}
         onClose={() => setSelectedRecord(null)}
         record={selectedRecord}
         historyMetrics={client.client_metrics || []}
         healthMetrics={historyData?.client_health_metrics || []}
+      />
+
+      <ConfirmDeleteDialog
+        isOpen={!!recordToDelete}
+        title="Eliminar registro"
+        message="Este registro dejará de aparecer en el historial del paciente."
+        itemName={
+          recordToDelete
+            ? `${recordToDelete.recordType === "measurement" ? "Medición corporal" : "Métrica de salud"} · ${getMeasurementRecordDateLabel(recordToDelete.rawDate)}`
+            : undefined
+        }
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        isLoading={isDeletingRecord}
+        onConfirm={handleDeleteRecord}
+        onCancel={closeDeleteDialog}
       />
     </div>
   );
