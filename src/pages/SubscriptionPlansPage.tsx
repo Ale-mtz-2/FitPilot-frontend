@@ -15,10 +15,14 @@ import {
   resolveSubscriptionPlanAction,
   resolveSubscriptionState,
 } from '@/features/subscriptions/planAccess';
+import {
+  ACTIVE_SUBSCRIPTION_EXISTS_CODE,
+  getApiErrorCode,
+  getApiErrorMessage,
+  runSubscriptionPlanAction,
+} from '@/features/subscriptions/subscriptionPlanAction';
 import { useAuthStore } from '@/store/newAuthStore';
 import type { User } from '@/types/api';
-
-const ACTIVE_SUBSCRIPTION_EXISTS_CODE = 'ACTIVE_SUBSCRIPTION_EXISTS';
 
 const formatPrice = (priceStr: string) => {
   const price = parseFloat(priceStr);
@@ -29,62 +33,6 @@ const formatPrice = (priceStr: string) => {
     currency: 'MXN',
     maximumFractionDigits: 0,
   }).format(price);
-};
-
-const getRedirectUrl = (payload: Record<string, unknown>): string | null => {
-  const rawUrl = payload.url ?? payload.checkout_url ?? payload.session_url;
-  if (typeof rawUrl === 'string' && rawUrl.trim()) return rawUrl;
-  return null;
-};
-
-const getApiErrorCode = (error: unknown): string | null => {
-  if (
-    error &&
-    typeof error === 'object' &&
-    'response' in error &&
-    error.response &&
-    typeof error.response === 'object' &&
-    'data' in error.response &&
-    error.response.data &&
-    typeof error.response.data === 'object' &&
-    'code' in error.response.data
-  ) {
-    const code = (error.response.data as { code?: unknown }).code;
-    return typeof code === 'string' ? code : null;
-  }
-
-  return null;
-};
-
-const getApiErrorMessage = (error: unknown): string | null => {
-  if (
-    error &&
-    typeof error === 'object' &&
-    'response' in error &&
-    error.response &&
-    typeof error.response === 'object' &&
-    'data' in error.response &&
-    error.response.data &&
-    typeof error.response.data === 'object'
-  ) {
-    const responseData = error.response.data as {
-      message?: string | string[];
-      error?: string;
-      detail?: string;
-    };
-
-    if (Array.isArray(responseData.message)) {
-      return responseData.message.filter(Boolean).join(', ') || null;
-    }
-
-    return responseData.message || responseData.error || responseData.detail || null;
-  }
-
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return null;
 };
 
 const getPlanMarketing = (plan: Plan) => {
@@ -203,50 +151,27 @@ export function SubscriptionPlansPage() {
     }
 
     try {
-      await refreshProfessional(true);
-      const latestUser = useAuthStore.getState().user ?? userData;
-      const action = resolveSubscriptionPlanAction(selectedPlan, latestUser);
+      const result = await runSubscriptionPlanAction({
+        selectedPlan,
+        fallbackUser: userData,
+        origin: window.location.origin,
+        refreshProfessional,
+        getLatestUser: () => useAuthStore.getState().user ?? userData,
+        resumeSubscription: () => resumeSubscriptionMutation.mutateAsync(),
+        createPortalSession: (payload) => createPortalSessionMutation.mutateAsync(payload),
+        createCheckoutSession: (payload) => createCheckoutMutation.mutateAsync(payload),
+        redirectTo: (url) => window.location.assign(url),
+      });
 
-      if (action === 'already_active') {
+      if (result.kind === 'already_active') {
         toast.success('Tu plan ya esta activo.');
         return;
       }
 
-      if (action === 'resume') {
-        const response = await resumeSubscriptionMutation.mutateAsync();
+      if (result.kind === 'resume') {
         await refreshProfessional(true);
-        toast.success(response.message || 'La renovacion automatica fue reactivada.');
-        return;
+        toast.success(result.message || 'La renovacion automatica fue reactivada.');
       }
-
-      if (action === 'portal') {
-        const response = await createPortalSessionMutation.mutateAsync({
-          return_url: `${window.location.origin}/subscriptions/plans`,
-        });
-        const portalUrl = getRedirectUrl(response as Record<string, unknown>);
-
-        if (!portalUrl) {
-          throw new Error('No se recibio una URL valida del portal de Stripe.');
-        }
-
-        window.location.assign(portalUrl);
-        return;
-      }
-
-      const response = await createCheckoutMutation.mutateAsync({
-        plan_id: selectedPlan.id,
-        billing_interval: 'monthly',
-        success_url: `${window.location.origin}/subscriptions/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${window.location.origin}/subscriptions/cancel`,
-      });
-
-      const checkoutUrl = getRedirectUrl(response as Record<string, unknown>);
-
-      if (!checkoutUrl) {
-        throw new Error('No se recibio una URL de checkout valida.');
-      }
-
-      window.location.assign(checkoutUrl);
     } catch (error) {
       console.error('Subscription action failed', error);
 
