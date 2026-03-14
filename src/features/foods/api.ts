@@ -1,6 +1,17 @@
 import { nutritionApi } from "@/api/clients/nutrition.client";
 import { FoodSearchResult, IFoodItem } from "./types";
 
+const buildProfessionalParams = (professionalId?: number) => {
+    if (!professionalId) {
+        return undefined;
+    }
+
+    return {
+        professionalId,
+        professional_id: professionalId,
+    };
+};
+
 /**
  * Fetches foods belonging to a specific exchange group.
  * Endpoint: /v1/foods/exchange-group/{groupId}
@@ -10,9 +21,7 @@ export const getFoodsByExchangeGroup = async (
     professionalId?: number,
 ): Promise<IFoodItem[]> => {
     const { data } = await nutritionApi.get<IFoodItem[]>(`/v1/foods/exchange-group/${groupId}`, {
-        params: {
-            professionalId,
-        },
+        params: buildProfessionalParams(professionalId),
     });
     return data;
 };
@@ -23,9 +32,7 @@ export const getFoodsByExchangeGroup = async (
  */
 export const getFoods = async (professionalId?: number): Promise<IFoodItem[]> => {
     const { data } = await nutritionApi.get<IFoodItem[]>("/v1/foods", {
-        params: {
-            professionalId,
-        },
+        params: buildProfessionalParams(professionalId),
     });
     return data;
 };
@@ -39,7 +46,7 @@ export const searchFoods = async (
         params: {
             q: query,
             limit,
-            professionalId,
+            ...buildProfessionalParams(professionalId),
         },
     });
     return data;
