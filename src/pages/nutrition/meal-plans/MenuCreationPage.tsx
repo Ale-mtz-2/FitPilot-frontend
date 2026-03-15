@@ -36,6 +36,7 @@ import { GlobalFoodSearchModal } from './components/GlobalFoodSearchModal';
 import {
     ChevronLeft,
     Save,
+    Printer,
     Utensils,
     Calendar,
     User,
@@ -76,6 +77,8 @@ import { differenceInCalendarDays } from 'date-fns';
 import { DatePicker } from '@/components/common/DatePicker';
 import { ClientHistoryPanel } from '@/components/ClientHistoryPanel';
 import { RecipeImage } from '@/components/recipes/RecipeImage';
+import { buildDietPdfDocumentFromDraft } from '@/features/menus/pdf';
+import { generateDietPdf } from '@/utils/dietPdfGenerator';
 import { matchesAnyNormalizedQuery, matchesNormalizedQuery } from '@/utils/search';
 import { resolveRecipeImageUrl } from '@/utils/recipeImages';
 
@@ -297,6 +300,7 @@ export function MenuCreationPage() {
     const { mutate: saveDraft } = useSaveMenuDraft();
     const { mutate: updateDraft } = useUpdateMenuDraft();
     const [lastSavedHash, setLastSavedHash] = useState<string>('');
+    const [isPrintingPdf, setIsPrintingPdf] = useState(false);
 
     // Auto-save Effect
     useEffect(() => {
@@ -858,6 +862,31 @@ export function MenuCreationPage() {
             description: reusableForm.description
         });
         setIsReusableModalOpen(false);
+    };
+
+    const handlePrintPdf = async () => {
+        if (localMeals.length === 0) {
+            toast.error('Agrega al menos una comida para imprimir el PDF');
+            return;
+        }
+
+        setIsPrintingPdf(true);
+        try {
+            const documentData = buildDietPdfDocumentFromDraft({
+                localMeals,
+                selectedFoods,
+                clientName: client ? `${client.name ?? ''} ${client.lastname ?? ''}`.trim() || null : null,
+                period,
+            });
+
+            await generateDietPdf(documentData);
+            toast.success('PDF del menú generado');
+        } catch (error) {
+            console.error('Failed to generate draft diet PDF:', error);
+            toast.error('Error al generar el PDF del menú');
+        } finally {
+            setIsPrintingPdf(false);
+        }
     };
 
     const [isAiOptionsModalOpen, setIsAiOptionsModalOpen] = useState(false);
@@ -1789,6 +1818,15 @@ onSelect={async (recipeId) => {
                                         className="flex-1 md:flex-none px-6 py-3 text-xs font-black text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-2xl transition-all uppercase tracking-widest"
                                     >
                                         Cancelar
+                                    </button>
+
+                                    <button
+                                        onClick={handlePrintPdf}
+                                        disabled={isPrintingPdf || localMeals.length === 0}
+                                        className="flex-1 md:flex-none px-6 py-3 text-xs font-black text-emerald-700 border border-emerald-200 bg-emerald-50 hover:bg-emerald-500 hover:text-white rounded-2xl transition-all uppercase tracking-widest disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        <Printer className="w-4 h-4" />
+                                        {isPrintingPdf ? 'Generando PDF...' : 'Imprimir PDF'}
                                     </button>
 
                                     <div className="flex bg-emerald-500 hover:bg-emerald-600 rounded-2xl shadow-xl shadow-emerald-500/25 transition-all group/save">

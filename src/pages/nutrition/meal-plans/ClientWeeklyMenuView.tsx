@@ -19,11 +19,14 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { format, startOfWeek, addDays, parseISO, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ArrowLeft, Calendar, Flame, ChevronRight, GripVertical, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Flame, ChevronRight, GripVertical, AlertCircle, Printer } from 'lucide-react';
 import { useGetMenuPoolCalendarSummary, useGetMenuPoolSummary, useSwapDailyMenu } from '@/features/menus/queries';
+import { getClientDailyMenuBatch } from '@/features/menus/api';
+import { buildDietPdfDocumentFromDailyBatch } from '@/features/menus/pdf';
 import { useProfessionalClients } from '@/features/professional-clients/queries';
 import { useProfessional } from '@/contexts/ProfessionalContext';
 import { IMenuPoolSummary } from '@/features/menus/types';
+import { generateDietPdf } from '@/utils/dietPdfGenerator';
 import toast from 'react-hot-toast';
 import { DatePicker } from '@/components/common/DatePicker';
 
@@ -290,6 +293,7 @@ export function ClientWeeklyMenuView() {
     // State
     const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
     const [activeId, setActiveId] = useState<string | number | null>(null);
+    const [isPrintingPdf, setIsPrintingPdf] = useState(false);
 
     // Get current client
     const client = useMemo(() => 
@@ -435,6 +439,33 @@ export function ClientWeeklyMenuView() {
         setCurrentWeekStart(startOfWeek(date, { weekStartsOn: 1 }));
     };
 
+    const handlePrintPdf = async () => {
+        if (!numericClientId) {
+            toast.error('No se pudo resolver el cliente para imprimir el PDF');
+            return;
+        }
+
+        setIsPrintingPdf(true);
+        try {
+            const startDate = format(currentWeekStart, 'yyyy-MM-dd');
+            const dailyMenus = await getClientDailyMenuBatch(numericClientId, startDate, 7);
+            const documentData = buildDietPdfDocumentFromDailyBatch({
+                dailyMenus,
+                startDate,
+                days: 7,
+                clientName: client ? `${client.name ?? ''} ${client.lastname ?? ''}`.trim() || null : null,
+            });
+
+            await generateDietPdf(documentData);
+            toast.success('PDF semanal generado');
+        } catch (error) {
+            console.error('Failed to generate weekly diet PDF:', error);
+            toast.error('Error al generar el PDF semanal');
+        } finally {
+            setIsPrintingPdf(false);
+        }
+    };
+
 
     return (
         <div className="h-[calc(100vh-6rem)] flex flex-col -m-6 px-6 pb-6 pt-10">
@@ -459,6 +490,15 @@ export function ClientWeeklyMenuView() {
                 </div>
 
                 <div className="flex items-center gap-4">
+                     <button
+                        onClick={handlePrintPdf}
+                        disabled={isPrintingPdf || swapMenuMutation.isPending || !numericClientId}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-black uppercase tracking-widest text-emerald-700 transition-all hover:bg-emerald-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <Printer className="w-4 h-4" />
+                        {isPrintingPdf ? 'Generando PDF...' : 'Imprimir PDF'}
+                    </button>
+
                      {/* Date Picker for Quick Navigation */}
                      <div className="w-40">
                         <DatePicker 

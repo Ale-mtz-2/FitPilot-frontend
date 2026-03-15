@@ -2,6 +2,7 @@ import { nutritionApi } from "@/api/clients/nutrition.client";
 import {
     GenerateAiMenuDto,
     GenerateAiMenuResponse,
+    MenuDailyBatchResponseItem,
     IMenu,
     IMenuCalendarSummary,
     IMenuDraft,
@@ -26,6 +27,22 @@ export const getReusableMenuSummary = async (
 export const getMenuById = async (id: number): Promise<IMenu> => {
     assertNutritionSubscriptionAccess();
     const { data } = await nutritionApi.get(`/v1/menus/${id}`);
+    return data;
+};
+
+export const getClientDailyMenuBatch = async (
+    clientId: number,
+    date: string,
+    days = 7,
+): Promise<MenuDailyBatchResponseItem[]> => {
+    assertNutritionSubscriptionAccess();
+    const { data } = await nutritionApi.get<MenuDailyBatchResponseItem[]>('/v1/menus/daily/batch', {
+        params: {
+            client_id: clientId,
+            date,
+            days,
+        },
+    });
     return data;
 };
 
