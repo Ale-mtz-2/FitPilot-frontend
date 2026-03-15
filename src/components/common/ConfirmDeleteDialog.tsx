@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { X } from 'lucide-react';
 import { Button } from './Button';
 
 interface ConfirmDeleteDialogProps {
@@ -32,8 +33,6 @@ export function ConfirmDeleteDialog({
   onCancel,
   variant = 'danger',
 }: ConfirmDeleteDialogProps) {
-  if (!isOpen) return null;
-
   const variantStyles = {
     danger: {
       icon: 'bg-red-100 text-red-600',
@@ -49,114 +48,114 @@ export function ConfirmDeleteDialog({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-y-auto">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-          onClick={onCancel}
-        />
-
-        {/* Dialog */}
-        <div className="flex min-h-full items-center justify-center p-4">
+      {isOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl"
-          >
-            {/* Close button */}
-            <button
-              onClick={onCancel}
-              className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600
-                         rounded-lg hover:bg-gray-100 transition-colors"
-              disabled={isLoading}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm"
+            onClick={onCancel}
+          />
+
+          <div className="flex min-h-full items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+              className="relative w-full max-w-md rounded-[2.5rem] border border-gray-100 bg-white shadow-2xl"
             >
-              <XMarkIcon className="h-5 w-5" />
-            </button>
+              <motion.button
+                initial={{ opacity: 0, scale: 0.72, rotate: -90 }}
+                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                exit={{ opacity: 0, scale: 0.72, rotate: 90 }}
+                transition={{
+                  duration: 0.28,
+                  delay: 0.08,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                onClick={onCancel}
+                className="absolute right-5 top-5 rounded-2xl p-2.5 text-gray-400 transition-all hover:bg-gray-50 hover:text-gray-600"
+                disabled={isLoading}
+              >
+                <X className="h-5 w-5" />
+              </motion.button>
 
-            <div className="p-6">
-              {/* Icon */}
-              <div className="flex justify-center mb-4">
-                <div className={`p-3 rounded-full ${styles.icon}`}>
-                  <ExclamationTriangleIcon className="h-8 w-8" />
+              <div className="p-8">
+                <div className="mb-4 flex justify-center">
+                  <div className={`rounded-full p-3 ${styles.icon}`}>
+                    <ExclamationTriangleIcon className="h-8 w-8" />
+                  </div>
                 </div>
-              </div>
 
-              {/* Title */}
-              <h3 className="text-xl font-semibold text-gray-900 text-center mb-2">
-                {title}
-              </h3>
+                <h3 className="mb-2 text-center text-xl font-semibold text-gray-900">
+                  {title}
+                </h3>
 
-              {/* Message */}
-              <p className="text-gray-600 text-center mb-2">
-                {message}
-              </p>
-
-              {/* Item name highlight */}
-              {itemName && (
-                <p className="text-center mb-6">
-                  <span className="font-medium text-gray-900 bg-gray-100 px-3 py-1 rounded-lg">
-                    {itemName}
-                  </span>
+                <p className="mb-2 text-center text-gray-600">
+                  {message}
                 </p>
-              )}
 
-              {/* Warning text */}
-              <p className="text-sm text-gray-500 text-center mb-6">
-                Esta acción no se puede deshacer.
-              </p>
+                {itemName && (
+                  <p className="mb-6 text-center">
+                    <span className="rounded-lg bg-gray-100 px-3 py-1 font-medium text-gray-900">
+                      {itemName}
+                    </span>
+                  </p>
+                )}
 
-              {/* Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={onCancel}
-                  disabled={isLoading}
-                >
-                  {cancelLabel}
-                </Button>
-                <button
-                  onClick={onConfirm}
-                  disabled={isLoading}
-                  className={`flex-1 px-4 py-2.5 rounded-xl text-white font-medium
+                <p className="mb-6 text-center text-sm text-gray-500">
+                  Esta acción no se puede deshacer.
+                </p>
+
+                <div className="flex gap-3">
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={onCancel}
+                    disabled={isLoading}
+                  >
+                    {cancelLabel}
+                  </Button>
+                  <button
+                    onClick={onConfirm}
+                    disabled={isLoading}
+                    className={`flex-1 rounded-xl px-4 py-2.5 text-white font-medium
                              transition-all duration-200 disabled:opacity-50
                              focus:outline-none focus:ring-2 focus:ring-offset-2
                              ${styles.button}`}
-                >
-                  {isLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                          fill="none"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                        />
-                      </svg>
-                      Eliminando...
-                    </span>
-                  ) : (
-                    confirmLabel
-                  )}
-                </button>
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          />
+                        </svg>
+                        Eliminando...
+                      </span>
+                    ) : (
+                      confirmLabel
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
         </div>
-      </div>
+      )}
     </AnimatePresence>
   );
 }

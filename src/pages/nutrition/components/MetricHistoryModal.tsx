@@ -13,6 +13,7 @@ import {
 import { ClientMetric } from "@/services/client-metrics";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { X } from "lucide-react";
 
 interface MetricHistoryModalProps {
   isOpen: boolean;
@@ -95,35 +96,46 @@ export function MetricHistoryModal({
   return (
     <Transition appear show={isOpen} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
-        {/* ... (Transition setup) */}
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm" />
+        </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4 text-center">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-300"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
+              enterFrom="opacity-0 scale-95 translate-y-4"
+              enterTo="opacity-100 scale-100 translate-y-0"
               leave="ease-in duration-200"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
+              leaveFrom="opacity-100 scale-100 translate-y-0"
+              leaveTo="opacity-0 scale-95 translate-y-4"
             >
-              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all h-[80vh] flex flex-col">
+              <Dialog.Panel className="flex h-[80vh] w-full max-w-2xl transform flex-col overflow-hidden rounded-[2.5rem] border border-gray-100 bg-white p-8 text-left align-middle shadow-2xl transition-all">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <Dialog.Title className="text-xl font-bold text-gray-900">
+                    <Dialog.Title className="text-2xl font-black tracking-tight text-gray-900">
                       {title}
                     </Dialog.Title>
-                    <p className="mt-1 text-sm text-gray-500">
+                    <p className="mt-1 text-sm font-medium text-gray-500">
                       Historial cronologico de la metrica seleccionada.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="rounded-full px-3 py-1.5 text-sm font-semibold text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                    className="rounded-2xl p-2.5 text-gray-400 transition-all hover:bg-gray-50 hover:text-gray-600"
+                    aria-label="Cerrar modal"
                   >
-                    Cerrar
+                    <X className="h-5 w-5" />
                   </button>
                 </div>
 
@@ -301,3 +313,4 @@ export function MetricHistoryModal({
     </Transition>
   );
 }
+
