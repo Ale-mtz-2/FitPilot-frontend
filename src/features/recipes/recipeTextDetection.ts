@@ -57,7 +57,7 @@ const DESCRIPTOR_PATTERNS = [
 ];
 
 const QUANTITY_PREFIX_REGEX =
-    /^(?:(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔])\s*(?:a\s*(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔]))?\s*(?:kg|kilo(?:s)?|g|gr|gramos?|ml|l|litros?|tazas?|cucharadas?|cucharaditas?|cdas?|cdtas?|piezas?|pieza|rebanadas?|ramas?|dientes?|latas?|sobres?|paquetes?|porciones?|filetes?|lonchas?|pizcas?)?\s*(?:de|del)?\s*)+/i;
+    /^(?:(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔])\s*(?:a\s*(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔]))?\s*(?:kg|kilo(?:s)?|g|gr|gramos?|ml|l|litros?|tazas?|cucharadas?|cucharaditas?|cdas?|cdtas?|piezas?|pieza|pechugas?|muslos?|rebanadas?|ramas?|dientes?|latas?|sobres?|paquetes?|porciones?|filetes?|lonchas?|pizcas?)?\s*(?:de|del)?\s*)+/i;
 
 type IndexedFood = {
     food: FoodSearchResult;
@@ -74,6 +74,8 @@ type CanonicalUnit =
     | 'cucharada'
     | 'cucharadita'
     | 'pieza'
+    | 'pechuga'
+    | 'muslo'
     | 'rebanada'
     | 'filete'
     | 'loncha'
@@ -85,9 +87,13 @@ type CanonicalUnit =
     | 'porcion'
     | 'rodaja';
 
+type SemanticPieceUnit = 'pechuga' | 'muslo' | 'filete' | 'rebanada';
+
 type ParsedMeasurement = {
     amount: number;
     unit: CanonicalUnit | null;
+    semanticPieceUnit: SemanticPieceUnit | null;
+    hasIngredientConnector: boolean;
 };
 
 type DetectedIngredientCandidate = {
@@ -130,6 +136,8 @@ const CANONICAL_UNIT_ALIASES: Record<CanonicalUnit, string[]> = {
     cucharada: ['cucharada', 'cucharadas', 'cda', 'cdas', 'tbsp', 'tablespoon', 'tablespoons'],
     cucharadita: ['cucharadita', 'cucharaditas', 'cdta', 'cdtas', 'tsp', 'teaspoon', 'teaspoons'],
     pieza: ['pieza', 'piezas', 'pza', 'pzas', 'pz', 'unidad', 'unidades', 'unit', 'units'],
+    pechuga: ['pechuga', 'pechugas'],
+    muslo: ['muslo', 'muslos'],
     rebanada: ['rebanada', 'rebanadas', 'slice', 'slices'],
     filete: ['filete', 'filetes'],
     loncha: ['loncha', 'lonchas'],
@@ -141,6 +149,19 @@ const CANONICAL_UNIT_ALIASES: Record<CanonicalUnit, string[]> = {
     porcion: ['porcion', 'porciones', 'serving', 'servings'],
     rodaja: ['rodaja', 'rodajas'],
 };
+
+/**
+ * Factores por defecto para mapear unidades semánticas de corte/pieza a `pieza`.
+ * Este catálogo está separado del parser para permitir ajustes nutricionales futuros.
+ */
+const SEMANTIC_PIECE_TO_UNIT_FACTOR: Record<SemanticPieceUnit, number> = {
+    pechuga: 1,
+    muslo: 1,
+    filete: 1,
+    rebanada: 1,
+};
+
+const SEMANTIC_PIECE_UNITS = new Set<SemanticPieceUnit>(['pechuga', 'muslo', 'filete', 'rebanada']);
 
 const PIECE_LIKE_UNITS = new Set<CanonicalUnit>([
     'pieza',
@@ -254,10 +275,15 @@ const extractMeasurement = (value: string): ParsedMeasurement | null => {
     const amount = secondAmount !== null ? (firstAmount + secondAmount) / 2 : firstAmount;
     const remainder = normalizedValue.slice(amountMatch[0].length).trim();
     const unitToken = remainder.match(/^([a-zA-Záéíóúüñ.]+)/)?.[1] ?? '';
+    const canonicalUnit = aliasToCanonicalUnit(unitToken);
 
     return {
         amount,
-        unit: aliasToCanonicalUnit(unitToken),
+        unit: canonicalUnit,
+        semanticPieceUnit: canonicalUnit && SEMANTIC_PIECE_UNITS.has(canonicalUnit as SemanticPieceUnit)
+            ? (canonicalUnit as SemanticPieceUnit)
+            : null,
+        hasIngredientConnector: /^de(?:l)?\b/i.test(remainder.slice(unitToken.length).trim()),
     };
 };
 
@@ -530,6 +556,26 @@ const resolveDetectedIngredientQuantity = (
         };
     }
 
+    if (measurement.semanticPieceUnit) {
+        // Prioridad para patrones como "2 pechugas de pollo": cuando viene con
+        // conector de ingrediente (de/del), se conserva esta cantidad semántica
+        // antes de intentar usar el tamaño base del alimento.
+        const isExplicitIngredientSemanticQuantity = measurement.hasIngredientConnector;
+        const pieceQuantity = measurement.amount * SEMANTIC_PIECE_TO_UNIT_FACTOR[measurement.semanticPieceUnit];
+        const pieceServingUnitId = resolveServingUnitId(food, 'pieza');
+        if (isExplicitIngredientSemanticQuantity) {
+            return {
+                quantity: pieceQuantity,
+                servingUnitId: pieceServingUnitId,
+            };
+        }
+
+        return {
+            quantity: pieceQuantity,
+            servingUnitId: pieceServingUnitId,
+        };
+    }
+
     if (measurement.unit) {
         const servingUnitId = resolveServingUnitId(food, measurement.unit);
         if (servingUnitId !== null) {
@@ -683,12 +729,11 @@ export const detectRecipeFromText = ({
             continue;
         }
 
-        const canMergeQuantities =
+        if (
             existingDetectedIngredient.quantity !== null &&
             nextDetectedIngredient.quantity !== null &&
-            existingDetectedIngredient.servingUnitId === nextDetectedIngredient.servingUnitId;
-
-        if (canMergeQuantities) {
+            existingDetectedIngredient.servingUnitId === nextDetectedIngredient.servingUnitId
+        ) {
             matchedIngredientsByFoodId.set(matchedFood.id, {
                 ...existingDetectedIngredient,
                 quantity: existingDetectedIngredient.quantity + nextDetectedIngredient.quantity,
