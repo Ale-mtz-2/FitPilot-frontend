@@ -42,4 +42,17 @@ describe('detectRecipeFromText', () => {
         expect(result.unmatchedIngredients).toEqual([]);
         expect(result.matchedIngredients.map((item) => item.food.name)).toEqual(['Cilantro']);
     });
+
+    it('elimina secuencias un|una + cuantificador + de antes del matching', () => {
+        const foods = [buildFood(1, 'Cebolla')];
+
+        const result = detectRecipeFromText({
+            text: 'Ingredientes:\nuna pizca de cebolla',
+            foods,
+        });
+
+        expect(result.unmatchedIngredients).toEqual([]);
+        expect(result.matchedIngredients.map((item) => item.food.name)).toEqual(['Cebolla']);
+    });
 });
+
