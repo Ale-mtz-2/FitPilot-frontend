@@ -54,7 +54,18 @@ const DESCRIPTOR_PATTERNS = [
     /\ben tiras?\b/gi,
     /\bsin piel\b/gi,
     /\bsin hueso\b/gi,
+    /\bpequeñ[oa]s?\b/gi,
+    /\bpequen[oa]s?\b/gi,
+    /\bmedian[oa]s?\b/gi,
+    /\bgrandes?\b/gi,
 ];
+
+const NON_NUTRITIONAL_QUANTIFIERS = ['trozo', 'manojo', 'ramita', 'pizca', 'chorrito', 'puñado', 'punado'];
+
+const QUANTIFIER_SEQUENCE_REGEX = new RegExp(
+    `\\b(?:un|una)\\s+(?:${NON_NUTRITIONAL_QUANTIFIERS.join('|')})(?:es|s)?(?:\\s+(?:pequeñ[oa]|pequen[oa]|median[oa]|grande))?\\s+de\\b`,
+    'gi'
+);
 
 const QUANTITY_PREFIX_REGEX =
     /^(?:(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔])\s*(?:a\s*(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔]))?\s*(?:kg|kilo(?:s)?|g|gr|gramos?|ml|l|litros?|tazas?|cucharadas?|cucharaditas?|cdas?|cdtas?|piezas?|pieza|pechugas?|muslos?|rebanadas?|ramas?|dientes?|latas?|sobres?|paquetes?|porciones?|filetes?|lonchas?|pizcas?)?\s*(?:de|del)?\s*)+/i;
@@ -200,7 +211,7 @@ const normalizeIngredientSegment = (value: string) =>
         .replace(/\s+/g, ' ')
         .trim();
 
-const aliasToCanonicalUnit = (value: string): CanonicalUnit | null => {
+const aliasToCanonicalUnit = (value: string): CanonicalUnit | null => {.
     const normalizedValue = normalizeSearchText(value).replace(/\./g, '');
     if (!normalizedValue) {
         return null;
@@ -457,6 +468,7 @@ const cleanIngredientCandidate = (value: string) => {
     }
 
     candidate = candidate.replace(QUANTITY_PREFIX_REGEX, '').trim();
+    candidate = candidate.replace(QUANTIFIER_SEQUENCE_REGEX, ' ').trim();
 
     for (const pattern of DESCRIPTOR_PATTERNS) {
         candidate = candidate.replace(pattern, ' ');

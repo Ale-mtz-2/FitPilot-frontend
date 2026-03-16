@@ -1,66 +1,58 @@
 import { describe, expect, it } from 'vitest';
+
+import { detectRecipeFromText } from '@/features/recipes/recipeTextDetection';
 import type { IFoodItem } from '@/features/foods/types';
-import { detectRecipeFromText } from './recipeTextDetection';
 
-const createFood = (id: number, name: string): IFoodItem =>
-    ({
-        id,
-        name,
-        brand: null,
-        category_id: 1,
-        exchange_group_id: 1,
-        exchange_subgroup_id: null,
-        is_recipe: false,
-        base_serving_size: 100,
-        base_unit: 'g',
-        calories_kcal: 0,
-        protein_g: 0,
-        carbs_g: 0,
-        fat_g: 0,
-        micronutrients: [],
-        food_categories: {
-            id: 1,
-            name: 'Verduras',
-            icon: null,
-        },
-        exchange_groups: {
-            id: 1,
-            name: 'Grupo',
-            icon: null,
-            description: null,
-            category: 'General',
-            created_at: null,
-            updated_at: null,
-            deleted_at: null,
-        },
-        food_nutrition_values: [],
-        serving_units: [],
-    }) as IFoodItem;
+const buildFood = (id: number, name: string): IFoodItem => ({
+    id,
+    name,
+    brand: null,
+    exchange_group_id: null,
+    base_serving_size: null,
+    base_unit: null,
+    calories_kcal: null,
+    protein_g: null,
+    carbs_g: null,
+    fat_g: null,
+    fiber_g: null,
+    serving_units: [],
+});
 
-describe('detectRecipeFromText morphology matching', () => {
-    it('matches manual case "2 chiles serranos" with catalog "chile serrano"', () => {
-        const foods = [createFood(1, 'chile serrano')];
+describe('detectRecipeFromText', () => {
+    it('normaliza cuantificadores culinarios a ingrediente canónico', () => {
+        const foods = [buildFood(1, 'Cebolla'), buildFood(2, 'Cilantro')];
 
         const result = detectRecipeFromText({
-            text: 'Ingredientes:\n2 chiles serranos',
+            text: 'Ingredientes:\nun trozo de cebolla\nun manojo pequeño de cilantro',
             foods,
         });
 
-        expect(result.matchedIngredients).toHaveLength(1);
-        expect(result.matchedIngredients[0]?.food.name).toBe('chile serrano');
-        expect(result.unmatchedIngredients).toHaveLength(0);
+        expect(result.unmatchedIngredients).toEqual([]);
+        expect(result.matchedIngredients.map((item) => item.food.name)).toEqual(['Cebolla', 'Cilantro']);
     });
 
-    it('matches manual case "4 tortillas de maíz" with catalog "tortilla de maíz"', () => {
-        const foods = [createFood(2, 'tortilla de maíz')];
+    it('acepta variantes sin acento de adjetivos de tamaño', () => {
+        const foods = [buildFood(1, 'Cilantro')];
 
         const result = detectRecipeFromText({
-            text: 'Ingredientes:\n4 tortillas de maíz',
+            text: 'Ingredientes:\nuna ramita pequeno de cilantro',
             foods,
         });
 
-        expect(result.matchedIngredients).toHaveLength(1);
-        expect(result.matchedIngredients[0]?.food.name).toBe('tortilla de maíz');
-        expect(result.unmatchedIngredients).toHaveLength(0);
+        expect(result.unmatchedIngredients).toEqual([]);
+        expect(result.matchedIngredients.map((item) => item.food.name)).toEqual(['Cilantro']);
+    });
+
+    it('elimina secuencias un|una + cuantificador + de antes del matching', () => {
+        const foods = [buildFood(1, 'Cebolla')];
+
+        const result = detectRecipeFromText({
+            text: 'Ingredientes:\nuna pizca de cebolla',
+            foods,
+        });
+
+        expect(result.unmatchedIngredients).toEqual([]);
+        expect(result.matchedIngredients.map((item) => item.food.name)).toEqual(['Cebolla']);
     });
 });
+
