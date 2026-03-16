@@ -63,6 +63,13 @@ type IndexedFood = {
     food: FoodSearchResult;
     normalizedName: string;
     tokens: string[];
+    semanticFamily: string | null;
+    popularity: number;
+};
+
+type FoodMatchSelection = {
+    food: FoodSearchResult;
+    matchedByFallback: boolean;
 };
 
 type CanonicalUnit =
@@ -101,6 +108,7 @@ export interface DetectedRecipeIngredient {
     quantity: number | null;
     servingUnitId: number | null;
     rawIngredient: string;
+    matchedByFallback: boolean;
 }
 
 export interface RecipeTextDetectionResult {
@@ -155,6 +163,64 @@ const PIECE_LIKE_UNITS = new Set<CanonicalUnit>([
     'porcion',
     'rodaja',
 ]);
+
+const SEMANTIC_FAMILY_EQUIVALENCES: Record<string, string> = {
+    'aceite vegetal': 'aceite',
+    'aceite de oliva': 'aceite',
+    'aceite de canola': 'aceite',
+    'aceite de girasol': 'aceite',
+    'aceite de coco': 'aceite',
+    'aceite de aguacate': 'aceite',
+};
+
+const SEMANTIC_FAMILY_BY_TOKEN: Record<string, string> = {
+    aceite: 'aceite',
+};
+
+const HIGH_CONFIDENCE_MATCH_SCORE = 180;
+const FALLBACK_MATCH_SCORE = 110;
+
+const getSemanticFamily = (normalizedName: string, tokens: string[]) => {
+    if (normalizedName in SEMANTIC_FAMILY_EQUIVALENCES) {
+        return SEMANTIC_FAMILY_EQUIVALENCES[normalizedName];
+    }
+
+    for (const token of tokens) {
+        if (token in SEMANTIC_FAMILY_BY_TOKEN) {
+            return SEMANTIC_FAMILY_BY_TOKEN[token];
+        }
+    }
+
+    return null;
+};
+
+const getFoodPopularity = (food: IFoodItem) => {
+    const foodWithMetadata = food as IFoodItem & {
+        popularity?: unknown;
+        frequency?: unknown;
+        usage_count?: unknown;
+        usageCount?: unknown;
+    };
+
+    const popularityCandidate =
+        foodWithMetadata.popularity ??
+        foodWithMetadata.frequency ??
+        foodWithMetadata.usage_count ??
+        foodWithMetadata.usageCount;
+
+    if (typeof popularityCandidate === 'number' && Number.isFinite(popularityCandidate)) {
+        return popularityCandidate;
+    }
+
+    if (typeof popularityCandidate === 'string') {
+        const parsedPopularity = Number(popularityCandidate);
+        if (Number.isFinite(parsedPopularity)) {
+            return parsedPopularity;
+        }
+    }
+
+    return 0;
+};
 
 const toFoodSearchResult = (food: IFoodItem): FoodSearchResult => ({
     id: food.id,
@@ -479,10 +545,13 @@ const buildFoodIndex = (foods: IFoodItem[], excludeFoodIds: number[]) =>
         .filter((food) => !excludeFoodIds.includes(food.id))
         .map((food) => {
             const normalizedName = normalizeSearchText(food.name);
+            const tokens = tokenizeIngredient(food.name);
             return {
                 food: toFoodSearchResult(food),
                 normalizedName,
-                tokens: tokenizeIngredient(food.name),
+                tokens,
+                semanticFamily: getSemanticFamily(normalizedName, tokens),
+                popularity: getFoodPopularity(food),
             };
         })
         .filter((food) => food.normalizedName.length > 0);
@@ -575,7 +644,7 @@ const resolveDetectedIngredientQuantity = (
     };
 };
 
-const selectBestFoodMatch = (candidate: string, foods: IndexedFood[]) => {
+const selectBestFoodMatch = (candidate: string, foods: IndexedFood[]): FoodMatchSelection | null => {
     const normalizedCandidate = normalizeSearchText(candidate);
     const candidateTokens = tokenizeIngredient(candidate);
 
@@ -585,11 +654,26 @@ const selectBestFoodMatch = (candidate: string, foods: IndexedFood[]) => {
 
     const exactMatch = foods.find((food) => food.normalizedName === normalizedCandidate);
     if (exactMatch) {
-        return exactMatch.food;
+        return {
+            food: exactMatch.food,
+            matchedByFallback: false,
+        };
     }
 
-    let bestMatch: { food: FoodSearchResult; score: number } | null = null;
     const candidateTokenSet = new Set(candidateTokens);
+    const candidateFamily = getSemanticFamily(normalizedCandidate, candidateTokens);
+    const highConfidenceMatches: Array<{
+        indexedFood: IndexedFood;
+        score: number;
+        descriptorPenalty: number;
+        coreMatchScore: number;
+    }> = [];
+    const fallbackMatches: Array<{
+        indexedFood: IndexedFood;
+        score: number;
+        descriptorPenalty: number;
+        coreMatchScore: number;
+    }> = [];
 
     for (const food of foods) {
         const overlappingTokens = food.tokens.filter((token) => candidateTokenSet.has(token));
@@ -603,18 +687,18 @@ const selectBestFoodMatch = (candidate: string, foods: IndexedFood[]) => {
             normalizedCandidate.includes(food.normalizedName) || food.normalizedName.includes(normalizedCandidate)
                 ? 50
                 : 0;
+        const hasFamilyCoreMatch = Boolean(candidateFamily && food.semanticFamily === candidateFamily);
+        const coreMatchScore = hasFamilyCoreMatch ? 2 : 0;
+        const descriptorPenalty = candidateTokens
+            .filter((token) => token !== candidateFamily && !food.tokens.includes(token)).length +
+            food.tokens.filter((token) => token !== candidateFamily && !candidateTokenSet.has(token)).length;
 
-        if (
-            !(
-                overlappingTokens.length >= 2 ||
-                (candidateTokens.length === 1 &&
-                    food.tokens.length <= 4 &&
-                    (normalizedCandidate.includes(food.tokens[0] ?? '') || food.normalizedName.includes(normalizedCandidate))) ||
-                (tokenCoverage >= 0.75 && foodCoverage >= 0.5)
-            )
-        ) {
-            continue;
-        }
+        const passesHighConfidenceGate =
+            overlappingTokens.length >= 2 ||
+            (candidateTokens.length === 1 &&
+                food.tokens.length <= 4 &&
+                (normalizedCandidate.includes(food.tokens[0] ?? '') || food.normalizedName.includes(normalizedCandidate))) ||
+            (tokenCoverage >= 0.75 && foodCoverage >= 0.5);
 
         const score =
             overlappingTokens.length * 100 +
@@ -623,15 +707,69 @@ const selectBestFoodMatch = (candidate: string, foods: IndexedFood[]) => {
             containsScore -
             Math.abs(food.tokens.length - candidateTokens.length) * 3;
 
-        if (!bestMatch || score > bestMatch.score) {
-            bestMatch = {
-                food: food.food,
+        if (passesHighConfidenceGate && score >= HIGH_CONFIDENCE_MATCH_SCORE) {
+            highConfidenceMatches.push({
+                indexedFood: food,
                 score,
-            };
+                descriptorPenalty,
+                coreMatchScore,
+            });
+            continue;
+        }
+
+        if (hasFamilyCoreMatch && score >= FALLBACK_MATCH_SCORE) {
+            fallbackMatches.push({
+                indexedFood: food,
+                score,
+                descriptorPenalty,
+                coreMatchScore,
+            });
         }
     }
 
-    return bestMatch?.food ?? null;
+    if (highConfidenceMatches.length > 0) {
+        highConfidenceMatches.sort((a, b) => b.score - a.score);
+        return {
+            food: highConfidenceMatches[0].indexedFood.food,
+            matchedByFallback: false,
+        };
+    }
+
+    if (fallbackMatches.length > 0) {
+        fallbackMatches.sort((a, b) => {
+            if (b.coreMatchScore !== a.coreMatchScore) {
+                return b.coreMatchScore - a.coreMatchScore;
+            }
+
+            if (a.descriptorPenalty !== b.descriptorPenalty) {
+                return a.descriptorPenalty - b.descriptorPenalty;
+            }
+
+            if (b.indexedFood.popularity !== a.indexedFood.popularity) {
+                return b.indexedFood.popularity - a.indexedFood.popularity;
+            }
+
+            return b.score - a.score;
+        });
+
+        const selectedFallbackMatch = fallbackMatches[0];
+        console.debug('[recipeTextDetection] fallback food match used', {
+            candidate,
+            candidateFamily,
+            selectedFoodId: selectedFallbackMatch.indexedFood.food.id,
+            selectedFoodName: selectedFallbackMatch.indexedFood.food.name,
+            selectedScore: selectedFallbackMatch.score,
+            selectedDescriptorPenalty: selectedFallbackMatch.descriptorPenalty,
+            selectedPopularity: selectedFallbackMatch.indexedFood.popularity,
+        });
+
+        return {
+            food: selectedFallbackMatch.indexedFood.food,
+            matchedByFallback: true,
+        };
+    }
+
+    return null;
 };
 
 export const detectRecipeFromText = ({
@@ -665,16 +803,19 @@ export const detectRecipeFromText = ({
     const unmatchedIngredients: string[] = [];
 
     for (const candidate of ingredientCandidates) {
-        const matchedFood = selectBestFoodMatch(candidate.name, foodIndex);
-        if (!matchedFood) {
+        const selectedMatch = selectBestFoodMatch(candidate.name, foodIndex);
+        if (!selectedMatch) {
             unmatchedIngredients.push(candidate.name);
             continue;
         }
+
+        const { food: matchedFood, matchedByFallback } = selectedMatch;
 
         const nextDetectedIngredient: DetectedRecipeIngredient = {
             food: matchedFood,
             ...resolveDetectedIngredientQuantity(matchedFood, candidate.measurement),
             rawIngredient: candidate.raw,
+            matchedByFallback,
         };
 
         const existingDetectedIngredient = matchedIngredientsByFoodId.get(matchedFood.id);
@@ -683,15 +824,15 @@ export const detectRecipeFromText = ({
             continue;
         }
 
-        const canMergeQuantities =
+        if (
             existingDetectedIngredient.quantity !== null &&
             nextDetectedIngredient.quantity !== null &&
-            existingDetectedIngredient.servingUnitId === nextDetectedIngredient.servingUnitId;
-
-        if (canMergeQuantities) {
+            existingDetectedIngredient.servingUnitId === nextDetectedIngredient.servingUnitId
+        ) {
             matchedIngredientsByFoodId.set(matchedFood.id, {
                 ...existingDetectedIngredient,
                 quantity: existingDetectedIngredient.quantity + nextDetectedIngredient.quantity,
+                matchedByFallback: existingDetectedIngredient.matchedByFallback || nextDetectedIngredient.matchedByFallback,
             });
             continue;
         }
