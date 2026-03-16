@@ -456,6 +456,8 @@ export function ClientWeeklyMenuView() {
                 clientName: client ? `${client.name ?? ''} ${client.lastname ?? ''}`.trim() || null : null,
             });
 
+            console.log('documentData', documentData);
+
             await generateDietPdf(documentData);
             toast.success('PDF semanal generado');
         } catch (error) {

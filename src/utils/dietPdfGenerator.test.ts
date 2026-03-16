@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DietPdfDocument } from '@/features/menus/types';
-import { buildDietPdf, loadPdfImageAsBase64 } from './dietPdfGenerator';
+import { buildDietPdf, formatDietPdfPortion, loadPdfImageAsBase64 } from './dietPdfGenerator';
 
 const sampleDocument: DietPdfDocument = {
     title: 'Menú nutricional',
@@ -86,6 +86,11 @@ describe('dietPdfGenerator', () => {
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
 
         await expect(loadPdfImageAsBase64('https://cdn.fitpilot.fit/recipes/20/1/bowl.jpg')).resolves.toBeNull();
+    });
+
+    it('prioritizes household labels when formatting portions', () => {
+        expect(formatDietPdfPortion(sampleDocument.days[0].meals[0].recipes[0].ingredients[0])).toBe('1 taza • 120 g');
+        expect(formatDietPdfPortion(sampleDocument.days[0].meals[0].recipes[0].ingredients[1])).toBe('1 eq • 140 g');
     });
 
     it('builds a pdf document without throwing when all images fail to load', async () => {

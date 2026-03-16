@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Copy, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Copy, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { MacroSummaryCard, type MacroStats } from '@/components/nutrition/MacroSummaryCard';
 import { RecipeImageUploader } from '@/components/recipes/RecipeImageUploader';
 import { RecipeIngredientPickerModal } from '@/components/recipes/RecipeIngredientPickerModal';
+import { RecipeTextImportModal } from '@/components/recipes/RecipeTextImportModal';
 import { useProfessional } from '@/contexts/ProfessionalContext';
+import { useGetFoods } from '@/features/foods/queries';
 import type { FoodSearchResult } from '@/features/foods/types';
+import {
+    detectRecipeFromText,
+    type DetectedRecipeIngredient,
+} from '@/features/recipes/recipeTextDetection';
 import {
     useCreateRecipe,
     useDeleteRecipeImage,
@@ -138,8 +144,16 @@ export function NutritionRecipeEditorPage() {
     const [pendingImageBlob, setPendingImageBlob] = useState<Blob | null>(null);
     const [removeImageRequested, setRemoveImageRequested] = useState(false);
     const [isPickerOpen, setIsPickerOpen] = useState(false);
+    const [isRecipeTextImportOpen, setIsRecipeTextImportOpen] = useState(false);
+    const [recipeImportText, setRecipeImportText] = useState('');
+    const [isRecipeTextDetecting, setIsRecipeTextDetecting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const [hydratedRecipeId, setHydratedRecipeId] = useState<number | null>(null);
+    const {
+        data: catalogFoods,
+        isLoading: isCatalogFoodsLoading,
+        isFetching: isCatalogFoodsFetching,
+    } = useGetFoods(professionalId, isRecipeTextImportOpen && professionalId !== undefined);
     const [isXlViewport, setIsXlViewport] = useState(() => {
         if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
             return true;
@@ -210,6 +224,34 @@ export function NutritionRecipeEditorPage() {
                 food,
             },
         ]);
+    };
+
+    const handleAddIngredientsBatch = (detectedIngredients: DetectedRecipeIngredient[]) => {
+        if (detectedIngredients.length === 0) {
+            return 0;
+        }
+
+        const existingFoodIds = new Set(ingredients.map((ingredient) => ingredient.foodId));
+        const uniqueIngredients = detectedIngredients.filter(
+            (ingredient) => !existingFoodIds.has(ingredient.food.id),
+        );
+
+        if (uniqueIngredients.length === 0) {
+            return 0;
+        }
+
+        setIngredients((currentIngredients) => [
+            ...currentIngredients,
+            ...uniqueIngredients.map((ingredient) => ({
+                clientId: buildClientIngredientId(ingredient.food.id),
+                foodId: ingredient.food.id,
+                servingUnitId: ingredient.servingUnitId,
+                quantity: String(ingredient.quantity ?? (toNumber(ingredient.food.base_serving_size) || 100)),
+                food: ingredient.food,
+            })),
+        ]);
+
+        return uniqueIngredients.length;
     };
 
     const handleIngredientChange = (
@@ -312,6 +354,66 @@ export function NutritionRecipeEditorPage() {
         }
     };
 
+    const handleDetectRecipeFromText = async () => {
+        const trimmedText = recipeImportText.trim();
+        if (!trimmedText) {
+            toast.error('Pega una receta o descripcion antes de detectar.');
+            return;
+        }
+
+        if (!catalogFoods || catalogFoods.length === 0) {
+            toast.error('El catalogo de alimentos aun no esta listo para la deteccion.');
+            return;
+        }
+
+        setIsRecipeTextDetecting(true);
+
+        try {
+            const detectionResult = detectRecipeFromText({
+                text: trimmedText,
+                foods: catalogFoods,
+                excludeFoodIds: ingredients.map((ingredient) => ingredient.foodId),
+            });
+
+            const addedIngredientsCount = handleAddIngredientsBatch(detectionResult.matchedIngredients);
+            const shouldApplyDetectedTitle = Boolean(detectionResult.detectedTitle && !name.trim());
+
+            if (shouldApplyDetectedTitle) {
+                setName(detectionResult.detectedTitle!);
+            }
+
+            if (!detectionResult.detectedTitle && addedIngredientsCount === 0) {
+                toast.error('No se pudo detectar un titulo nuevo ni ingredientes del catalogo.');
+                return;
+            }
+
+            const feedbackParts: string[] = [];
+            if (shouldApplyDetectedTitle) {
+                feedbackParts.push(`Titulo detectado: ${detectionResult.detectedTitle}`);
+            } else if (detectionResult.detectedTitle) {
+                feedbackParts.push('Se detecto un titulo, pero se mantuvo el nombre actual');
+            }
+
+            if (addedIngredientsCount > 0) {
+                feedbackParts.push(
+                    `${addedIngredientsCount} ingrediente${addedIngredientsCount === 1 ? '' : 's'} agregado${addedIngredientsCount === 1 ? '' : 's'}`,
+                );
+            }
+
+            if (detectionResult.unmatchedIngredients.length > 0) {
+                feedbackParts.push(
+                    `${detectionResult.unmatchedIngredients.length} ingrediente${detectionResult.unmatchedIngredients.length === 1 ? '' : 's'} sin coincidencia`,
+                );
+            }
+
+            toast.success(feedbackParts.join(' · '));
+            setIsRecipeTextImportOpen(false);
+            setRecipeImportText('');
+        } finally {
+            setIsRecipeTextDetecting(false);
+        }
+    };
+
     const sidebarContent = (
         <div className="space-y-6">
             <RecipeImageUploader
@@ -388,15 +490,27 @@ export function NutritionRecipeEditorPage() {
                     </p>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={isSaving || isTemplateReadonly}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-nutrition-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-nutrition-500/20 transition hover:bg-nutrition-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                    <Save className="h-4 w-4" />
-                    {isEditing ? 'Guardar cambios' : 'Crear receta'}
-                </button>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                    <button
+                        type="button"
+                        onClick={() => setIsRecipeTextImportOpen(true)}
+                        disabled={isSaving || isTemplateReadonly}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-nutrition-200 bg-white px-5 py-3 text-sm font-semibold text-nutrition-700 transition hover:bg-nutrition-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <Sparkles className="h-4 w-4" />
+                        Detectar receta
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={isSaving || isTemplateReadonly}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-nutrition-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-nutrition-500/20 transition hover:bg-nutrition-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <Save className="h-4 w-4" />
+                        {isEditing ? 'Guardar cambios' : 'Crear receta'}
+                    </button>
+                </div>
             </div>
 
             {isTemplateReadonly ? (
@@ -595,6 +709,16 @@ export function NutritionRecipeEditorPage() {
                 onSelect={handleAddIngredient}
                 professionalId={professionalId}
                 excludeIds={ingredients.map((ingredient) => ingredient.foodId)}
+            />
+
+            <RecipeTextImportModal
+                isOpen={isRecipeTextImportOpen}
+                onClose={() => setIsRecipeTextImportOpen(false)}
+                value={recipeImportText}
+                onChange={setRecipeImportText}
+                onConfirm={handleDetectRecipeFromText}
+                isDetecting={isRecipeTextDetecting}
+                isCatalogLoading={isCatalogFoodsLoading || isCatalogFoodsFetching}
             />
         </div>
     );

@@ -265,10 +265,54 @@ describe('diet pdf mappers', () => {
                     _foodRef: createFood({
                         id: 1001,
                         name: 'Tortilla de maíz',
+                        base_serving_size: 100,
+                        serving_units: [
+                            {
+                                id: 5001,
+                                food_id: 1001,
+                                unit_name: 'g',
+                                gram_equivalent: 1,
+                                is_exchange_unit: false,
+                            },
+                            {
+                                id: 5002,
+                                food_id: 1001,
+                                unit_name: 'pieza',
+                                gram_equivalent: 25,
+                                is_exchange_unit: false,
+                            },
+                        ],
                         exchange_groups: {
                             id: 1,
                             name: 'Cereales',
                         },
+                        food_nutrition_values: [
+                            {
+                                id: 1,
+                                food_id: 1001,
+                                data_source_id: 1,
+                                calories_kcal: 120,
+                                protein_g: 10,
+                                carbs_g: 8,
+                                fat_g: 4,
+                                base_serving_size: 100,
+                                base_unit: 'g',
+                                gross_weight_g: null,
+                                net_weight_g: null,
+                                state: 'standard',
+                                notes: '{"original_serving_amount":1,"original_serving_unit":"taza","equivalent_count":1}',
+                                deleted_at: null,
+                                created_at: null,
+                                fiber_g: 1,
+                                glycemic_index: null,
+                                glycemic_load: null,
+                                data_sources: {
+                                    id: 1,
+                                    name: 'Manual',
+                                },
+                                food_micronutrient_values: [],
+                            },
+                        ],
                     }),
                     recipeId: 99,
                     recipeName: 'Tacos caseros',
@@ -329,9 +373,76 @@ describe('diet pdf mappers', () => {
         expect(meal.recipes[0].ingredients).toHaveLength(2);
         expect(meal.recipes[0].ingredients[0].portion.grams).toBe(80);
         expect(meal.recipes[0].ingredients[0].portion.equivalents).toBe(0.8);
+        expect(meal.recipes[0].ingredients[0].portion.householdLabel).toBe('3/4 taza');
         expect(meal.standaloneFoods).toHaveLength(1);
         expect(meal.standaloneFoods[0].label).toBe('Aguacate');
         expect(documentData.summary.totalRecipes).toBe(1);
         expect(documentData.summary.totalStandaloneFoods).toBe(1);
+    });
+
+    it('derives household measures for draft standalone foods from serving units', () => {
+        const localMeals: IMenuMealDraft[] = [
+            {
+                id: 2,
+                meal_name: 'Colación',
+                sort_order: 2,
+                meal_plan_exchanges: [
+                    {
+                        id: 30,
+                        exchange_group_id: 7,
+                        quantity: 1,
+                        exchange_group: {
+                            id: 7,
+                            name: 'Grasas',
+                        },
+                    },
+                ],
+            },
+        ];
+
+        const selectedFoods: Record<string, MenuBuilderFoodSelection[]> = {
+            '2-30': [
+                {
+                    foodId: 2001,
+                    grams: 15,
+                    calculatedExchanges: 1,
+                    nutritionValueId: 1,
+                    _foodRef: createFood({
+                        id: 2001,
+                        name: 'Aceite de oliva',
+                        base_serving_size: 15,
+                        exchange_group_id: 7,
+                        exchange_groups: {
+                            id: 7,
+                            name: 'Grasas',
+                        },
+                        serving_units: [
+                            {
+                                id: 7001,
+                                food_id: 2001,
+                                unit_name: 'g',
+                                gram_equivalent: 1,
+                                is_exchange_unit: false,
+                            },
+                            {
+                                id: 7002,
+                                food_id: 2001,
+                                unit_name: 'cda',
+                                gram_equivalent: 15,
+                                is_exchange_unit: false,
+                            },
+                        ],
+                    }),
+                    isFromRecipe: false,
+                },
+            ],
+        };
+
+        const documentData = buildDietPdfDocumentFromDraft({
+            localMeals,
+            selectedFoods,
+        });
+
+        expect(documentData.days[0].meals[0].standaloneFoods[0].portion.householdLabel).toBe('1 cda');
     });
 });

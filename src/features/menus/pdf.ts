@@ -1,6 +1,6 @@
 import { addDays, format, isValid, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import type { IFoodItem } from '@/features/foods/types';
+import type { IFoodItem, IFoodNutritionValue } from '@/features/foods/types';
 import { resolveRecipeImageUrl } from '@/utils/recipeImages';
 import type {
     DietPdfDocument,
@@ -74,6 +74,11 @@ const isGramUnit = (value: string | null | undefined) => {
     );
 };
 
+const isEquivalentUnit = (value: string | null | undefined) => {
+    const normalized = normalizeUnit(value);
+    return normalized === 'eq' || normalized === 'equiv' || normalized.includes('equivalente');
+};
+
 const formatDisplayNumber = (value: number | null) => {
     if (value === null) {
         return null;
@@ -95,6 +100,114 @@ const formatHouseholdLabel = (quantity: number | null, unitName: string | null |
     return formattedQuantity ? `${formattedQuantity} ${unitName.trim()}` : unitName.trim();
 };
 
+const FRIENDLY_FRACTIONS = [
+    { value: 0, label: '' },
+    { value: 0.25, label: '1/4' },
+    { value: 1 / 3, label: '1/3' },
+    { value: 0.5, label: '1/2' },
+    { value: 2 / 3, label: '2/3' },
+    { value: 0.75, label: '3/4' },
+] as const;
+
+const FRIENDLY_QUANTITY_TOLERANCE = 0.12;
+const MIN_HOUSEHOLD_QUANTITY = 0.25;
+const MAX_HOUSEHOLD_QUANTITY = 8;
+
+const buildFriendlyQuantityCandidate = (whole: number, fractionValue: number, fractionLabel: string) => {
+    const numeric = whole + fractionValue;
+    if (numeric <= 0) {
+        return null;
+    }
+
+    return {
+        numeric,
+        label: fractionLabel ? (whole > 0 ? `${whole} ${fractionLabel}` : fractionLabel) : String(whole),
+    };
+};
+
+const getFriendlyQuantityMatch = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) {
+        return null;
+    }
+
+    const whole = Math.floor(value);
+    const candidates = new Map<string, { numeric: number; label: string; delta: number }>();
+
+    for (let wholePart = Math.max(0, whole - 1); wholePart <= whole + 1; wholePart += 1) {
+        FRIENDLY_FRACTIONS.forEach((fraction) => {
+            const candidate = buildFriendlyQuantityCandidate(wholePart, fraction.value, fraction.label);
+            if (!candidate) {
+                return;
+            }
+
+            if (candidate.numeric < MIN_HOUSEHOLD_QUANTITY || candidate.numeric > MAX_HOUSEHOLD_QUANTITY) {
+                return;
+            }
+
+            const delta = Math.abs(value - candidate.numeric);
+            const key = `${candidate.numeric.toFixed(4)}-${candidate.label}`;
+            const existing = candidates.get(key);
+
+            if (!existing || delta < existing.delta) {
+                candidates.set(key, { ...candidate, delta });
+            }
+        });
+    }
+
+    const bestMatch = Array.from(candidates.values()).sort(
+        (left, right) => left.delta - right.delta || Math.abs(left.numeric - 1) - Math.abs(right.numeric - 1),
+    )[0];
+
+    if (!bestMatch || bestMatch.delta > FRIENDLY_QUANTITY_TOLERANCE) {
+        return null;
+    }
+
+    return bestMatch;
+};
+
+const pluralizeHouseholdUnit = (unitName: string, quantity: number) => {
+    const trimmed = unitName.trim();
+    if (!trimmed || quantity < 1.01) {
+        return trimmed;
+    }
+
+    const normalized = normalizeUnit(trimmed);
+    const irregularMap: Record<string, string> = {
+        pieza: 'piezas',
+        taza: 'tazas',
+        vaso: 'vasos',
+        rebanada: 'rebanadas',
+        cucharada: 'cucharadas',
+        cucharadita: 'cucharaditas',
+        cda: 'cdas',
+        cdita: 'cditas',
+    };
+
+    if (irregularMap[normalized]) {
+        return irregularMap[normalized];
+    }
+
+    if (normalized.endsWith('s')) {
+        return trimmed;
+    }
+
+    return /[aeiou]$/i.test(trimmed) ? `${trimmed}s` : `${trimmed}es`;
+};
+
+const buildFriendlyHouseholdLabel = (quantity: number, unitName: string | null | undefined) => {
+    if (!unitName?.trim()) {
+        return null;
+    }
+
+    const match = getFriendlyQuantityMatch(quantity);
+    if (!match) {
+        return null;
+    }
+
+    const displayUnit = pluralizeHouseholdUnit(unitName.trim(), match.numeric);
+    return `${match.label} ${displayUnit}`.trim();
+};
+
 const resolveFoodNutrition = (food: FoodLike) => {
     const nutritionValues = food?.food_nutrition_values ?? [];
     return nutritionValues.find((value) => value?.state === 'standard') ?? nutritionValues[0] ?? null;
@@ -109,6 +222,113 @@ const resolveBaseUnit = (food: FoodLike) =>
     resolveFoodNutrition(food)?.base_unit?.trim() ||
     food?.base_unit?.trim() ||
     null;
+
+const resolveSelectionNutrition = (
+    food: IFoodItem | null | undefined,
+    nutritionValueId?: number,
+): IFoodNutritionValue | null => {
+    const nutritionValues = food?.food_nutrition_values ?? [];
+
+    if (nutritionValueId !== undefined) {
+        const matched = nutritionValues.find((value) => value.id === nutritionValueId);
+        if (matched) {
+            return matched;
+        }
+    }
+
+    return nutritionValues.find((value) => value.state === 'standard') ?? nutritionValues[0] ?? null;
+};
+
+const resolveHouseholdLabelFromNutritionNotes = (
+    food: IFoodItem | null | undefined,
+    grams: number | null,
+    equivalents: number | null,
+    nutritionValueId?: number,
+) => {
+    const nutritionValue = resolveSelectionNutrition(food, nutritionValueId);
+    const notes = nutritionValue?.notes;
+    if (!notes) {
+        return null;
+    }
+
+    let parsedNotes: Record<string, unknown>;
+    try {
+        parsedNotes = JSON.parse(notes) as Record<string, unknown>;
+    } catch {
+        return null;
+    }
+
+    const originalServingAmount = toNumber(parsedNotes.original_serving_amount);
+    const originalServingUnit =
+        typeof parsedNotes.original_serving_unit === 'string' ? parsedNotes.original_serving_unit.trim() : '';
+    const equivalentCount = toNumber(parsedNotes.equivalent_count);
+    const baseServingSize = toNumber(nutritionValue?.base_serving_size);
+
+    if (
+        originalServingAmount === null ||
+        originalServingAmount <= 0 ||
+        !originalServingUnit ||
+        isGramUnit(originalServingUnit) ||
+        isEquivalentUnit(originalServingUnit)
+    ) {
+        return null;
+    }
+
+    const ratio =
+        equivalents !== null && equivalentCount !== null && equivalentCount > 0
+            ? equivalents / equivalentCount
+            : grams !== null && baseServingSize !== null && baseServingSize > 0
+                ? grams / baseServingSize
+                : null;
+
+    if (ratio === null || ratio <= 0) {
+        return null;
+    }
+
+    return buildFriendlyHouseholdLabel(originalServingAmount * ratio, originalServingUnit);
+};
+
+const resolveHouseholdLabelFromServingUnits = (food: IFoodItem | null | undefined, grams: number | null) => {
+    if (!food || grams === null || grams <= 0) {
+        return null;
+    }
+
+    const candidate = (food.serving_units ?? [])
+        .map((unit) => {
+            const gramEquivalent = toNumber(unit.gram_equivalent);
+            if (
+                gramEquivalent === null ||
+                gramEquivalent <= 0 ||
+                isGramUnit(unit.unit_name) ||
+                isEquivalentUnit(unit.unit_name)
+            ) {
+                return null;
+            }
+
+            const quantity = grams / gramEquivalent;
+            const match = getFriendlyQuantityMatch(quantity);
+            if (!match) {
+                return null;
+            }
+
+            const label = buildFriendlyHouseholdLabel(quantity, unit.unit_name);
+            if (!label) {
+                return null;
+            }
+
+            return {
+                label,
+                quantity: match.numeric,
+                delta: match.delta,
+            };
+        })
+        .filter((value): value is { label: string; quantity: number; delta: number } => value !== null)
+        .sort(
+            (left, right) => left.delta - right.delta || Math.abs(left.quantity - 1) - Math.abs(right.quantity - 1),
+        )[0];
+
+    return candidate?.label ?? null;
+};
 
 const buildPortion = (
     householdLabel: string | null,
@@ -158,7 +378,11 @@ const derivePortionFromDailyItem = (item: IMenuDailyItem): DietPdfPortion => {
 const buildPortionFromSelection = (selection: MenuBuilderFoodSelection): DietPdfPortion => {
     const grams = toNumber(selection.grams);
     const equivalents = toNumber(selection.calculatedExchanges);
-    return buildPortion(null, equivalents, grams);
+    const householdLabel =
+        resolveHouseholdLabelFromNutritionNotes(selection._foodRef, grams, equivalents, selection.nutritionValueId) ??
+        resolveHouseholdLabelFromServingUnits(selection._foodRef, grams);
+
+    return buildPortion(householdLabel, equivalents, grams);
 };
 
 const resolveIngredientLabel = (food: FoodLike, fallback?: string | null) =>

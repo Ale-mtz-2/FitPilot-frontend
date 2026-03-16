@@ -34,12 +34,16 @@ const sanitizeFileName = (value: string | null | undefined) =>
 const formatCalories = (value: number | null) =>
     value !== null && value > 0 ? `${Math.round(value)} kcal` : 'Sin calorías';
 
-const formatPortion = (ingredient: DietPdfIngredient) => {
-    const parts = [
-        ingredient.portion.householdLabel,
-        ingredient.portion.equivalents !== null ? `${ingredient.portion.equivalents} eq` : null,
-        ingredient.portion.grams !== null ? `${ingredient.portion.grams} g` : null,
-    ].filter(Boolean);
+export const formatDietPdfPortion = (ingredient: DietPdfIngredient) => {
+    const parts = ingredient.portion.householdLabel
+        ? [
+            ingredient.portion.householdLabel,
+            ingredient.portion.grams !== null ? `${ingredient.portion.grams} g` : null,
+        ]
+        : [
+            ingredient.portion.equivalents !== null ? `${ingredient.portion.equivalents} eq` : null,
+            ingredient.portion.grams !== null ? `${ingredient.portion.grams} g` : null,
+        ];
 
     return parts.length > 0 ? parts.join(' • ') : 'Sin porción';
 };
@@ -313,7 +317,7 @@ const renderRecipeSection = async (
         body: recipe.ingredients.map((ingredient) => [
             ingredient.label,
             ingredient.exchangeGroupName || '—',
-            formatPortion(ingredient),
+            formatDietPdfPortion(ingredient),
         ]),
         headStyles: {
             fillColor: toMutableColor(colors.primary),
@@ -358,7 +362,7 @@ const renderStandaloneFoodsTable = (
         body: ingredients.map((ingredient) => [
             ingredient.label,
             ingredient.exchangeGroupName || '—',
-            formatPortion(ingredient),
+            formatDietPdfPortion(ingredient),
         ]),
         headStyles: {
             fillColor: toMutableColor(colors.primaryDark),
