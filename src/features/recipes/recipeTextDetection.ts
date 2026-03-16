@@ -62,6 +62,7 @@ const QUANTITY_PREFIX_REGEX =
 type IndexedFood = {
     food: FoodSearchResult;
     normalizedName: string;
+    normalizedMorphName: string;
     tokens: string[];
 };
 
@@ -267,6 +268,54 @@ const tokenizeIngredient = (value: string) =>
         .split(/\s+/)
         .map((token) => token.trim())
         .filter((token) => token.length > 1 && !NOUN_STOPWORDS.has(token));
+
+const normalizeSpanishToken = (token: string) => {
+    const normalizedToken = token.trim();
+    if (normalizedToken.length < 4) {
+        return normalizedToken;
+    }
+
+    if (/[bcdfghjklmn\u00f1pqrstvwxyz]es$/.test(normalizedToken) && normalizedToken.length > 4) {
+        return normalizedToken.slice(0, -2);
+    }
+
+    if (/[aeiou]s$/.test(normalizedToken) && normalizedToken.length > 4) {
+        return normalizedToken.slice(0, -1);
+    }
+
+    return normalizedToken;
+};
+
+const getSpanishTokenMatchVariants = (token: string) => {
+    const variants = new Set<string>([token]);
+    const normalizedToken = normalizeSpanishToken(token);
+    variants.add(normalizedToken);
+
+    if (/[bcdfghjklmn\u00f1pqrstvwxyz]es$/.test(token) && token.length > 4) {
+        variants.add(token.slice(0, -1));
+    }
+
+    return Array.from(variants).filter((variant) => variant.length > 1 && !NOUN_STOPWORDS.has(variant));
+};
+
+const tokenizeIngredientForMatch = (value: string) => {
+    const baseTokens = tokenizeIngredient(value);
+    const tokensWithFallback = new Set<string>();
+
+    for (const token of baseTokens) {
+        for (const variant of getSpanishTokenMatchVariants(token)) {
+            tokensWithFallback.add(variant);
+        }
+    }
+
+    return Array.from(tokensWithFallback);
+};
+
+const normalizeIngredientForMatch = (value: string) =>
+    tokenizeIngredient(value)
+        .map((token) => normalizeSpanishToken(token))
+        .filter((token) => token.length > 1 && !NOUN_STOPWORDS.has(token))
+        .join(' ');
 
 const isPreparationHeading = (value: string) =>
     PREPARATION_SECTION_PREFIXES.some((prefix) => value.startsWith(prefix));
@@ -482,7 +531,8 @@ const buildFoodIndex = (foods: IFoodItem[], excludeFoodIds: number[]) =>
             return {
                 food: toFoodSearchResult(food),
                 normalizedName,
-                tokens: tokenizeIngredient(food.name),
+                normalizedMorphName: normalizeIngredientForMatch(food.name),
+                tokens: tokenizeIngredientForMatch(food.name),
             };
         })
         .filter((food) => food.normalizedName.length > 0);
@@ -577,13 +627,16 @@ const resolveDetectedIngredientQuantity = (
 
 const selectBestFoodMatch = (candidate: string, foods: IndexedFood[]) => {
     const normalizedCandidate = normalizeSearchText(candidate);
-    const candidateTokens = tokenizeIngredient(candidate);
+    const normalizedMorphCandidate = normalizeIngredientForMatch(candidate);
+    const candidateTokens = tokenizeIngredientForMatch(candidate);
 
     if (!normalizedCandidate || candidateTokens.length === 0) {
         return null;
     }
 
-    const exactMatch = foods.find((food) => food.normalizedName === normalizedCandidate);
+    const exactMatch = foods.find(
+        (food) => food.normalizedName === normalizedCandidate || food.normalizedMorphName === normalizedMorphCandidate,
+    );
     if (exactMatch) {
         return exactMatch.food;
     }
