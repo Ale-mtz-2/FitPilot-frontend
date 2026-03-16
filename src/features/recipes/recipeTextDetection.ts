@@ -54,14 +54,26 @@ const DESCRIPTOR_PATTERNS = [
     /\ben tiras?\b/gi,
     /\bsin piel\b/gi,
     /\bsin hueso\b/gi,
+    /\bpequeñ[oa]s?\b/gi,
+    /\bpequen[oa]s?\b/gi,
+    /\bmedian[oa]s?\b/gi,
+    /\bgrandes?\b/gi,
 ];
 
+const NON_NUTRITIONAL_QUANTIFIERS = ['trozo', 'manojo', 'ramita', 'pizca', 'chorrito', 'puñado', 'punado'];
+
+const QUANTIFIER_SEQUENCE_REGEX = new RegExp(
+    `\\b(?:un|una)\\s+(?:${NON_NUTRITIONAL_QUANTIFIERS.join('|')})(?:es|s)?(?:\\s+(?:pequeñ[oa]|pequen[oa]|median[oa]|grande))?\\s+de\\b`,
+    'gi'
+);
+
 const QUANTITY_PREFIX_REGEX =
-    /^(?:(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔])\s*(?:a\s*(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔]))?\s*(?:kg|kilo(?:s)?|g|gr|gramos?|ml|l|litros?|tazas?|cucharadas?|cucharaditas?|cdas?|cdtas?|piezas?|pieza|rebanadas?|ramas?|dientes?|latas?|sobres?|paquetes?|porciones?|filetes?|lonchas?|pizcas?)?\s*(?:de|del)?\s*)+/i;
+    /^(?:(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔])\s*(?:a\s*(?:\d+(?:[.,]\d+)?|\d+\/\d+|[¼½¾⅓⅔]))?\s*(?:kg|kilo(?:s)?|g|gr|gramos?|ml|l|litros?|tazas?|cucharadas?|cucharaditas?|cdas?|cdtas?|piezas?|pieza|pechugas?|muslos?|rebanadas?|ramas?|dientes?|latas?|sobres?|paquetes?|porciones?|filetes?|lonchas?|pizcas?)?\s*(?:de|del)?\s*)+/i;
 
 type IndexedFood = {
     food: FoodSearchResult;
     normalizedName: string;
+    normalizedMorphName: string;
     tokens: string[];
     semanticFamily: string | null;
     popularity: number;
@@ -81,6 +93,8 @@ type CanonicalUnit =
     | 'cucharada'
     | 'cucharadita'
     | 'pieza'
+    | 'pechuga'
+    | 'muslo'
     | 'rebanada'
     | 'filete'
     | 'loncha'
@@ -92,9 +106,13 @@ type CanonicalUnit =
     | 'porcion'
     | 'rodaja';
 
+type SemanticPieceUnit = 'pechuga' | 'muslo' | 'filete' | 'rebanada';
+
 type ParsedMeasurement = {
     amount: number;
     unit: CanonicalUnit | null;
+    semanticPieceUnit: SemanticPieceUnit | null;
+    hasIngredientConnector: boolean;
 };
 
 type DetectedIngredientCandidate = {
@@ -138,6 +156,8 @@ const CANONICAL_UNIT_ALIASES: Record<CanonicalUnit, string[]> = {
     cucharada: ['cucharada', 'cucharadas', 'cda', 'cdas', 'tbsp', 'tablespoon', 'tablespoons'],
     cucharadita: ['cucharadita', 'cucharaditas', 'cdta', 'cdtas', 'tsp', 'teaspoon', 'teaspoons'],
     pieza: ['pieza', 'piezas', 'pza', 'pzas', 'pz', 'unidad', 'unidades', 'unit', 'units'],
+    pechuga: ['pechuga', 'pechugas'],
+    muslo: ['muslo', 'muslos'],
     rebanada: ['rebanada', 'rebanadas', 'slice', 'slices'],
     filete: ['filete', 'filetes'],
     loncha: ['loncha', 'lonchas'],
@@ -149,6 +169,19 @@ const CANONICAL_UNIT_ALIASES: Record<CanonicalUnit, string[]> = {
     porcion: ['porcion', 'porciones', 'serving', 'servings'],
     rodaja: ['rodaja', 'rodajas'],
 };
+
+/**
+ * Factores por defecto para mapear unidades semánticas de corte/pieza a `pieza`.
+ * Este catálogo está separado del parser para permitir ajustes nutricionales futuros.
+ */
+const SEMANTIC_PIECE_TO_UNIT_FACTOR: Record<SemanticPieceUnit, number> = {
+    pechuga: 1,
+    muslo: 1,
+    filete: 1,
+    rebanada: 1,
+};
+
+const SEMANTIC_PIECE_UNITS = new Set<SemanticPieceUnit>(['pechuga', 'muslo', 'filete', 'rebanada']);
 
 const PIECE_LIKE_UNITS = new Set<CanonicalUnit>([
     'pieza',
@@ -244,7 +277,7 @@ const normalizeIngredientSegment = (value: string) =>
         .replace(/\s+/g, ' ')
         .trim();
 
-const aliasToCanonicalUnit = (value: string): CanonicalUnit | null => {
+const aliasToCanonicalUnit = (value: string): CanonicalUnit | null => {.
     const normalizedValue = normalizeSearchText(value).replace(/\./g, '');
     if (!normalizedValue) {
         return null;
@@ -320,10 +353,15 @@ const extractMeasurement = (value: string): ParsedMeasurement | null => {
     const amount = secondAmount !== null ? (firstAmount + secondAmount) / 2 : firstAmount;
     const remainder = normalizedValue.slice(amountMatch[0].length).trim();
     const unitToken = remainder.match(/^([a-zA-Záéíóúüñ.]+)/)?.[1] ?? '';
+    const canonicalUnit = aliasToCanonicalUnit(unitToken);
 
     return {
         amount,
-        unit: aliasToCanonicalUnit(unitToken),
+        unit: canonicalUnit,
+        semanticPieceUnit: canonicalUnit && SEMANTIC_PIECE_UNITS.has(canonicalUnit as SemanticPieceUnit)
+            ? (canonicalUnit as SemanticPieceUnit)
+            : null,
+        hasIngredientConnector: /^de(?:l)?\b/i.test(remainder.slice(unitToken.length).trim()),
     };
 };
 
@@ -333,6 +371,54 @@ const tokenizeIngredient = (value: string) =>
         .split(/\s+/)
         .map((token) => token.trim())
         .filter((token) => token.length > 1 && !NOUN_STOPWORDS.has(token));
+
+const normalizeSpanishToken = (token: string) => {
+    const normalizedToken = token.trim();
+    if (normalizedToken.length < 4) {
+        return normalizedToken;
+    }
+
+    if (/[bcdfghjklmn\u00f1pqrstvwxyz]es$/.test(normalizedToken) && normalizedToken.length > 4) {
+        return normalizedToken.slice(0, -2);
+    }
+
+    if (/[aeiou]s$/.test(normalizedToken) && normalizedToken.length > 4) {
+        return normalizedToken.slice(0, -1);
+    }
+
+    return normalizedToken;
+};
+
+const getSpanishTokenMatchVariants = (token: string) => {
+    const variants = new Set<string>([token]);
+    const normalizedToken = normalizeSpanishToken(token);
+    variants.add(normalizedToken);
+
+    if (/[bcdfghjklmn\u00f1pqrstvwxyz]es$/.test(token) && token.length > 4) {
+        variants.add(token.slice(0, -1));
+    }
+
+    return Array.from(variants).filter((variant) => variant.length > 1 && !NOUN_STOPWORDS.has(variant));
+};
+
+const tokenizeIngredientForMatch = (value: string) => {
+    const baseTokens = tokenizeIngredient(value);
+    const tokensWithFallback = new Set<string>();
+
+    for (const token of baseTokens) {
+        for (const variant of getSpanishTokenMatchVariants(token)) {
+            tokensWithFallback.add(variant);
+        }
+    }
+
+    return Array.from(tokensWithFallback);
+};
+
+const normalizeIngredientForMatch = (value: string) =>
+    tokenizeIngredient(value)
+        .map((token) => normalizeSpanishToken(token))
+        .filter((token) => token.length > 1 && !NOUN_STOPWORDS.has(token))
+        .join(' ');
 
 const isPreparationHeading = (value: string) =>
     PREPARATION_SECTION_PREFIXES.some((prefix) => value.startsWith(prefix));
@@ -448,6 +534,7 @@ const cleanIngredientCandidate = (value: string) => {
     }
 
     candidate = candidate.replace(QUANTITY_PREFIX_REGEX, '').trim();
+    candidate = candidate.replace(QUANTIFIER_SEQUENCE_REGEX, ' ').trim();
 
     for (const pattern of DESCRIPTOR_PATTERNS) {
         candidate = candidate.replace(pattern, ' ');
@@ -549,9 +636,8 @@ const buildFoodIndex = (foods: IFoodItem[], excludeFoodIds: number[]) =>
             return {
                 food: toFoodSearchResult(food),
                 normalizedName,
-                tokens,
-                semanticFamily: getSemanticFamily(normalizedName, tokens),
-                popularity: getFoodPopularity(food),
+                normalizedMorphName: normalizeIngredientForMatch(food.name),
+                tokens: tokenizeIngredientForMatch(food.name),
             };
         })
         .filter((food) => food.normalizedName.length > 0);
@@ -596,6 +682,26 @@ const resolveDetectedIngredientQuantity = (
         return {
             quantity: null,
             servingUnitId: null,
+        };
+    }
+
+    if (measurement.semanticPieceUnit) {
+        // Prioridad para patrones como "2 pechugas de pollo": cuando viene con
+        // conector de ingrediente (de/del), se conserva esta cantidad semántica
+        // antes de intentar usar el tamaño base del alimento.
+        const isExplicitIngredientSemanticQuantity = measurement.hasIngredientConnector;
+        const pieceQuantity = measurement.amount * SEMANTIC_PIECE_TO_UNIT_FACTOR[measurement.semanticPieceUnit];
+        const pieceServingUnitId = resolveServingUnitId(food, 'pieza');
+        if (isExplicitIngredientSemanticQuantity) {
+            return {
+                quantity: pieceQuantity,
+                servingUnitId: pieceServingUnitId,
+            };
+        }
+
+        return {
+            quantity: pieceQuantity,
+            servingUnitId: pieceServingUnitId,
         };
     }
 
@@ -646,13 +752,16 @@ const resolveDetectedIngredientQuantity = (
 
 const selectBestFoodMatch = (candidate: string, foods: IndexedFood[]): FoodMatchSelection | null => {
     const normalizedCandidate = normalizeSearchText(candidate);
-    const candidateTokens = tokenizeIngredient(candidate);
+    const normalizedMorphCandidate = normalizeIngredientForMatch(candidate);
+    const candidateTokens = tokenizeIngredientForMatch(candidate);
 
     if (!normalizedCandidate || candidateTokens.length === 0) {
         return null;
     }
 
-    const exactMatch = foods.find((food) => food.normalizedName === normalizedCandidate);
+    const exactMatch = foods.find(
+        (food) => food.normalizedName === normalizedCandidate || food.normalizedMorphName === normalizedMorphCandidate,
+    );
     if (exactMatch) {
         return {
             food: exactMatch.food,
